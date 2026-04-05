@@ -8,12 +8,14 @@ import {
 } from "lucide-react";
 import QuestionSummary from "@/components/dashboard/QuestionSummary";
 import LiveStatusBoard from "@/components/dashboard/LiveStatusBoard";
+import { useUIStore } from "@/lib/store/uiStore";
 
 type UserMode = "popular" | "interest";
 
 export default function Home() {
   const [mode, setMode] = useState<UserMode>("popular");
   const [sortBy, setSortBy] = useState<"popular" | "recent">("popular");
+  const openBottomSheet = useUIStore((state) => state.openBottomSheet);
   // 예시: 사용자가 등록한 관심 키워드 2개
   const [myInterests] = useState(["부동산/이사", "병원/약국"]);
 
@@ -134,13 +136,17 @@ export default function Home() {
           </div>
         </div>
         {[1, 2, 3].map((id) => (
-          <div key={id} className="border-b border-gray-100 pb-4">
+          <div 
+            key={id} 
+            className="border-b border-gray-100 pb-4 cursor-pointer hover:bg-gray-50/50 transition-colors -mx-4 px-4 pt-2"
+            onClick={() => openBottomSheet("postDetail", { title: "수원 정자동 근처에 조용히 공부하기 좋은 독서실 추천해주실 분 계신가요?" })}
+          >
             <div className="flex justify-between items-start mb-2">
-              <span className="bg-gray-100 px-2 py-1 rounded text-[10px] text-gray-600">동네질문</span>
-              <span className="text-xs text-gray-400">2분 전</span>
+              <span className="bg-gray-100 px-2 py-1 rounded text-[10px] text-gray-600 font-bold">동네질문</span>
+              <span className="text-[11px] text-gray-400">2분 전</span>
             </div>
-            <p className="text-sm font-medium mb-1 text-[#3E2723]">수원 정자동 근처에 조용히 공부하기 좋은 독서실 추천해주실 분 계신가요?</p>
-            <div className="flex items-center space-x-3 text-xs text-gray-400">
+            <p className="text-[14px] font-bold mb-2 text-[#3E2723]">수원 정자동 근처에 조용히 공부하기 좋은 독서실 추천해주실 분 계신가요?</p>
+            <div className="flex items-center space-x-3 text-[11px] text-gray-400 font-medium">
               <span>공감 5</span>
               <span>댓글 12</span>
             </div>

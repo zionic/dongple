@@ -3,9 +3,11 @@
 import Link from "next/link";
 import { Home, Search, MessageSquare, User, PlusCircle } from "lucide-react";
 import { usePathname } from "next/navigation";
+import { useUIStore } from "@/lib/store/uiStore";
 
 export default function BottomNav() {
     const pathname = usePathname();
+    const openBottomSheet = useUIStore((state) => state.openBottomSheet);
 
     const navItems = [
         { icon: Home, label: "홈", path: "/" },
@@ -20,6 +22,20 @@ export default function BottomNav() {
             {navItems.map((item) => {
                 const Icon = item.icon;
                 const isActive = pathname === item.path;
+
+                if (item.path === "/write") {
+                    return (
+                        <button
+                            key={item.path}
+                            onClick={() => openBottomSheet("write")}
+                            className="flex flex-col items-center justify-center space-y-1 text-gray-400 hover:text-[#795548]"
+                        >
+                            <Icon size={24} />
+                            <span className="text-xs">{item.label}</span>
+                        </button>
+                    );
+                }
+
                 return (
                     <Link
                         key={item.path}

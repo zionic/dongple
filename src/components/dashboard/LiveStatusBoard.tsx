@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { Clock, CheckCircle2, Plus, HelpCircle, AlertCircle, X } from "lucide-react";
 import Link from "next/link";
+import { useUIStore } from "@/lib/store/uiStore";
 
 interface LiveStatus {
     id: string;
@@ -69,15 +70,7 @@ export default function LiveStatusBoard() {
         },
     ]);
 
-    const [selectedRequestId, setSelectedRequestId] = useState<string | null>(null);
-    const [detailModalId, setDetailModalId] = useState<string | null>(null);
-    const [modalMode, setModalMode] = useState<"reply" | "disagree">("reply");
-    const [replyText, setReplyText] = useState("");
-    const [selectedStatus, setSelectedStatus] = useState<string>("보통");
-    const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-    const [createMode, setCreateMode] = useState<"request" | "share">("share");
-    const [newPlaceName, setNewPlaceName] = useState("");
-    const [newCategory, setNewCategory] = useState("기타");
+    const openBottomSheet = useUIStore((state) => state.openBottomSheet);
     const [currentIndex, setCurrentIndex] = useState(0);
 
     // 자동 롤링 티커 타이머 (3.5초 간격)
@@ -104,27 +97,11 @@ export default function LiveStatusBoard() {
         }));
     };
 
-    const handleDisagreeClick = (id: string) => {
-        const item = liveUpdates.find(i => i.id === id);
-        setSelectedRequestId(id);
-        setModalMode("disagree");
-        setSelectedStatus(item?.status === "여유" ? "보통" : "여유"); // 기본값 다르게
-    };
-
-    const handleReplyClick = (id: string) => {
-        setSelectedRequestId(id);
-        setModalMode("reply");
-        setSelectedStatus("보통");
-    };
-
-    const handleReplySubmit = () => {
-        if (modalMode === "reply" && !replyText.trim()) return;
-        if (!selectedRequestId) return;
-
+    const handleReplySubmit = ({ selectedStatus, replyText, id }: any) => {
         const option = statusOptions.find(opt => opt.label === selectedStatus);
 
         setLiveUpdates(prev => prev.map(item => {
-            if (item.id === selectedRequestId) {
+            if (item.id === id) {
                 const newStatus = option ? option.label : "상태 변경됨";
                 const newBadgeColor = option ? option.badgeColor : "text-gray-500";
                 const nowTime = "방금 전";
@@ -150,18 +127,11 @@ export default function LiveStatusBoard() {
             }
             return item;
         }));
-        
-        handleCloseModal();
     };
 
-    const handleCreateSubmit = () => {
-        if (!newPlaceName.trim()) {
-            alert("장소 이름을 입력해주세요.");
-            return;
-        }
-        
+    const handleCreateSubmit = ({ newPlaceName, newCategory, selectedStatus, replyText, mode }: any) => {
         const nowTime = "방금 전";
-        const isRequest = createMode === "request";
+        const isRequest = mode === "request";
         
         let newStatus = "답변대기";
         let newBadgeColor = "text-[#5D4037]";
@@ -194,22 +164,6 @@ export default function LiveStatusBoard() {
         };
 
         setLiveUpdates([newUpdate, ...liveUpdates]);
-        
-        // Modal reset
-        setIsCreateModalOpen(false);
-        setNewPlaceName("");
-        setNewCategory("기타");
-        setReplyText("");
-        setSelectedStatus("보통");
-    };
-
-    const handleCloseModal = () => {
-        setIsCreateModalOpen(false);
-        setSelectedRequestId(null);
-        setReplyText("");
-        setSelectedStatus("보통");
-        setNewPlaceName("");
-        setNewCategory("기타");
     };
 
     const getCardBgColor = (status: string, is_request: boolean) => {
@@ -229,7 +183,7 @@ export default function LiveStatusBoard() {
     };
 
     return (
-        <section className="space-y-4">
+        <section className="space-y-4 sticky top-0 z-40 bg-gray-50/95 backdrop-blur-md pt-2 pb-3 -mx-4 px-4 shadow-sm border-b border-gray-100 transition-all shadow-[#3E2723]/5">
             <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-2">
                     <h2 className="text-lg font-bold text-[#3E2723]">실시간 동네 상황</h2>
@@ -243,14 +197,14 @@ export default function LiveStatusBoard() {
                 </div>
                 <div className="flex space-x-2">
                     <button 
-                        onClick={() => { setCreateMode("request"); setIsCreateModalOpen(true); }}
+                        onClick={() => openBottomSheet("liveCreate", { mode: "request", onSubmit: (data: any) => handleCreateSubmit({ ...data, mode: "request" }) })}
                         className="text-[10px] text-[#5D4037] border border-[#D7CCC8] bg-[#EFEBE9] px-2.5 py-1.5 rounded-xl flex items-center space-x-1 font-bold hover:bg-[#D7CCC8]/50 transition-colors shadow-sm"
                     >
                         <HelpCircle size={12} />
                         <span>요청</span>
                     </button>
                     <button 
-                        onClick={() => { setCreateMode("share"); setIsCreateModalOpen(true); }}
+                        onClick={() => openBottomSheet("liveCreate", { mode: "share", onSubmit: (data: any) => handleCreateSubmit({ ...data, mode: "share" }) })}
                         className="text-[10px] text-white bg-[#2E7D32] px-2.5 py-1.5 rounded-xl flex items-center space-x-1 font-bold hover:bg-[#1B5E20] transition-colors shadow-sm"
                     >
                         <Plus size={12} />
@@ -263,7 +217,10 @@ export default function LiveStatusBoard() {
             {liveUpdates.length > 0 && (
                 <div 
                     className={`relative flex items-center justify-between p-4 border rounded-2xl cursor-pointer shadow-sm hover:shadow-md transition-all h-16 ${getCardBgColor(liveUpdates[currentIndex].status, liveUpdates[currentIndex].is_request)}`}
-                    onClick={() => setDetailModalId(liveUpdates[currentIndex].id)}
+                    onClick={() => {
+                        const item = liveUpdates[currentIndex];
+                        openBottomSheet("liveDetail", { detailItem: item });
+                    }}
                 >
                     {/* 왼쪽 상태 컬러 인디케이터 */}
                     <div className={`absolute left-0 top-0 bottom-0 w-1.5 rounded-l-2xl ${getIndicatorColor(liveUpdates[currentIndex].status, liveUpdates[currentIndex].is_request)}`} />
@@ -292,11 +249,16 @@ export default function LiveStatusBoard() {
                         <button 
                             onClick={(e) => {
                                 e.stopPropagation();
-                                if (liveUpdates[currentIndex].is_request) {
-                                    handleReplyClick(liveUpdates[currentIndex].id);
-                                } else {
-                                    handleDisagreeClick(liveUpdates[currentIndex].id);
-                                }
+                                const item = liveUpdates[currentIndex];
+                                const isRequest = item.is_request;
+                                const mode = isRequest ? "reply" : "disagree";
+                                const defaultStatus = isRequest ? "보통" : (item.status === "여유" ? "보통" : "여유");
+                                
+                                openBottomSheet("liveReply", { 
+                                    mode, 
+                                    defaultStatus, 
+                                    onSubmit: (data: any) => handleReplySubmit({ ...data, id: item.id }) 
+                                });
                             }}
                             className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-colors shadow-sm ${liveUpdates[currentIndex].is_request ? 'bg-[#5D4037] text-white hover:bg-[#4E342E]' : 'bg-white border border-[#D7CCC8] text-[#5D4037] hover:bg-[#EFEBE9]'}`}
                         >
@@ -313,223 +275,7 @@ export default function LiveStatusBoard() {
                 </Link>
             </div>
 
-            {/* 답변 모달 */}
-            {selectedRequestId && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 px-4">
-                    <div className="bg-white rounded-2xl w-full max-w-sm overflow-hidden shadow-xl animate-in fade-in zoom-in-95 duration-200">
-                        <div className="flex items-center justify-between p-4 border-b border-gray-100">
-                            <div>
-                                <h3 className="font-bold text-[#3E2723] text-lg">
-                                    {modalMode === "reply" ? "상황 알려주기" : "다른 상황 제보하기"}
-                                </h3>
-                                <p className="text-[10px] text-gray-500 mt-0.5">
-                                    {modalMode === "reply" ? "이웃들에게 현재 상황을 정확하게 알려주세요." : "이전 사용자의 정보와 다르다면 알맞은 상태를 선택해주세요."}
-                                </p>
-                            </div>
-                            <button onClick={handleCloseModal} className="text-gray-400 hover:text-gray-600 p-1">
-                                <X size={20} />
-                            </button>
-                        </div>
-                        <div className="p-4 space-y-3">
-                            <div className="flex gap-2">
-                                {statusOptions.map((opt) => (
-                                    <button
-                                        key={opt.label}
-                                        onClick={() => setSelectedStatus(opt.label)}
-                                        className={`flex-1 py-1.5 text-[11px] font-bold border rounded-xl transition-all ${
-                                            selectedStatus === opt.label 
-                                                ? `${opt.color} ring-2 ring-offset-1` 
-                                                : "bg-white text-gray-500 border-gray-200 hover:bg-gray-50"
-                                        }`}
-                                    >
-                                        {opt.label}
-                                    </button>
-                                ))}
-                            </div>
-                            <textarea 
-                                className="w-full h-24 p-3 text-xs bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#2E7D32]/50 resize-none placeholder-gray-400"
-                                placeholder={modalMode === "reply" ? "예: 지금 대기인원 10명 정도 있어요." : "어떤 점이 달라졌는지 이웃들에게 남겨주세요 (선택)"}
-                                value={replyText}
-                                onChange={(e) => setReplyText(e.target.value)}
-                                autoFocus={modalMode === "reply"}
-                            />
-                        </div>
-                        <div className="flex bg-gray-50/50 p-4 pt-2 gap-2 border-t border-gray-100">
-                            <button 
-                                onClick={handleReplySubmit}
-                                disabled={modalMode === "reply" && !replyText.trim()}
-                                className="w-full py-3 text-sm font-bold text-white bg-[#2E7D32] rounded-xl hover:bg-[#1B5E20] disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
-                            >
-                                이웃에게 공유하기
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
 
-            {/* 상세 공유 내용 보기 모달 */}
-            {detailModalId && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 px-4">
-                    <div className="bg-white rounded-2xl w-full max-w-sm overflow-hidden shadow-xl animate-in fade-in zoom-in-95 duration-200">
-                        {(() => {
-                            const detailItem = liveUpdates.find(i => i.id === detailModalId);
-                            if (!detailItem) return null;
-                            return (
-                                <>
-                                    <div className="flex items-center justify-between p-4 border-b border-gray-100 bg-gray-50/50">
-                                        <div>
-                                            <span className="text-[10px] px-2 py-0.5 rounded-lg border font-bold bg-gray-100 text-gray-600 border-gray-200">
-                                                {detailItem.category}
-                                            </span>
-                                            <h3 className="font-bold text-[#3E2723] text-lg mt-1.5">{detailItem.place_name}</h3>
-                                        </div>
-                                        <button onClick={() => setDetailModalId(null)} className="text-gray-400 hover:text-gray-600 p-1">
-                                            <X size={20} />
-                                        </button>
-                                    </div>
-                                    <div className="p-5">
-                                        <div className="flex items-center space-x-1.5 mb-4">
-                                            <span className={`text-base font-extrabold ${detailItem.status_color || 'text-gray-700'}`}>
-                                                {detailItem.is_request ? "답변 대기 중" : detailItem.status}
-                                            </span>
-                                            {!detailItem.is_request && (
-                                                <div className="flex items-center text-[10px] font-bold text-gray-500 bg-gray-50 px-2.5 py-1 rounded-full border border-gray-100">
-                                                    <CheckCircle2 size={14} className="text-[#2E7D32] mr-1" />
-                                                    {detailItem.verified_count}명 동의
-                                                </div>
-                                            )}
-                                        </div>
-                                        <div className="bg-gray-50 rounded-xl p-4 text-sm border border-gray-100 min-h-[80px] max-h-[250px] overflow-y-auto">
-                                            {detailItem.history && detailItem.history.length > 0 ? (
-                                                <div className="space-y-4">
-                                                    {detailItem.history.map((hist, idx, arr) => (
-                                                        <div key={idx} className="flex flex-col space-y-1.5 relative">
-                                                            {idx !== arr.length - 1 && (
-                                                                <div className="absolute left-1.5 top-5 bottom-[-16px] w-0.5 bg-gray-200"></div>
-                                                            )}
-                                                            <div className="flex items-center space-x-2 text-[10px] z-10 w-full">
-                                                                <div className={`w-3.5 h-3.5 rounded-full ${hist.status_color.replace('text-', 'bg-')} bg-opacity-70 border-2 border-white shadow-sm shrink-0`} />
-                                                                <span className={`font-bold ${hist.status_color}`}>[{hist.status}]</span>
-                                                                <span className="text-gray-400 font-medium tracking-tight">{hist.time}</span>
-                                                            </div>
-                                                            <div className="pl-6 text-[12px] text-gray-700 font-medium break-words whitespace-pre-wrap leading-relaxed">
-                                                                {hist.text}
-                                                            </div>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            ) : (
-                                                <div className="text-gray-400 italic text-center text-xs mt-3 flex h-full items-center justify-center">이웃이 남긴 상태 코멘트 히스토리가 없습니다.</div>
-                                            )}
-                                        </div>
-                                    </div>
-                                    <div className="p-4 pt-0">
-                                        <button 
-                                            onClick={() => setDetailModalId(null)}
-                                            className="w-full py-3 text-sm font-bold text-gray-600 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors border border-gray-200"
-                                        >
-                                            닫기
-                                        </button>
-                                    </div>
-                                </>
-                            );
-                        })()}
-                    </div>
-                </div>
-            )}
-            {/* 새 상황 생성(요청/공유) 모달 */}
-            {isCreateModalOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 animate-in fade-in">
-                    <div className="bg-white rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200">
-                        {/* Header */}
-                        <div className="flex items-center justify-between p-4 border-b border-gray-100 bg-gray-50/50">
-                            <h3 className="font-bold text-[#3E2723] flex items-center">
-                                {createMode === "request" ? (
-                                    <><HelpCircle size={18} className="text-[#5D4037] mr-2" /> 동네 상황 요청하기</>
-                                ) : (
-                                    <><Plus size={18} className="text-[#2E7D32] mr-2" /> 동네 상황 공유하기</>
-                                )}
-                            </h3>
-                            <button 
-                                onClick={handleCloseModal}
-                                className="text-gray-400 hover:text-gray-600 p-1 rounded-full hover:bg-gray-100 transition-colors"
-                            >
-                                <X size={20} />
-                            </button>
-                        </div>
-                        
-                        {/* Body */}
-                        <div className="p-5 space-y-4">
-                            <div>
-                                <label className="block text-xs font-bold text-gray-700 mb-1.5">장소 이름 (필수)</label>
-                                <input
-                                    type="text"
-                                    placeholder="어느 장소인가요? (예: 정자시장 앞)"
-                                    value={newPlaceName}
-                                    onChange={(e) => setNewPlaceName(e.target.value)}
-                                    className={`w-full text-sm p-3 border border-gray-200 rounded-xl focus:ring-2 outline-none transition-colors ${createMode === 'request' ? 'focus:ring-[#5D4037]/20 focus:border-[#5D4037]' : 'focus:ring-[#2E7D32]/20 focus:border-[#2E7D32]'}`}
-                                />
-                            </div>
-
-                            <div>
-                                <label className="block text-xs font-bold text-gray-700 mb-1.5">장소 카테고리</label>
-                                <select
-                                    value={newCategory}
-                                    onChange={(e) => setNewCategory(e.target.value)}
-                                    className={`w-full text-sm p-3 border border-gray-200 rounded-xl focus:ring-2 outline-none bg-white transition-colors ${createMode === 'request' ? 'focus:ring-[#5D4037]/20 focus:border-[#5D4037]' : 'focus:ring-[#2E7D32]/20 focus:border-[#2E7D32]'}`}
-                                >
-                                    <option value="기타">카테고리 선택 (기타)</option>
-                                    <option value="공원">🌲 공원</option>
-                                    <option value="운동">💪 운동</option>
-                                    <option value="마켓">🛒 마켓</option>
-                                    <option value="교통">🚗 교통</option>
-                                    <option value="관공서">🏢 관공서</option>
-                                    <option value="맛집">🍜 맛집</option>
-                                </select>
-                            </div>
-
-                            {createMode === "share" && (
-                                <div>
-                                    <label className="block text-xs font-bold text-gray-700 mb-2">현재 현장 상태 (필수)</label>
-                                    <div className="flex space-x-2">
-                                        {statusOptions.map((option) => (
-                                            <button
-                                                key={option.label}
-                                                onClick={() => setSelectedStatus(option.label)}
-                                                className={`flex-1 py-2 text-sm font-bold rounded-xl border transition-all ${selectedStatus === option.label
-                                                    ? `${option.color} ring-2 ring-offset-1 ${option.label === '여유' ? 'ring-green-300' : option.label === '보통' ? 'ring-yellow-300' : 'ring-red-300'}`
-                                                    : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'
-                                                    }`}
-                                            >
-                                                {option.label}
-                                            </button>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
-
-                            <div>
-                                <label className="block text-xs font-bold text-gray-700 mb-1.5">
-                                    {createMode === "request" ? "추가 질문 코멘트 (선택)" : "상세 공유 코멘트 (선택)"}
-                                </label>
-                                <textarea
-                                    className={`w-full text-sm p-3 border border-gray-200 rounded-xl focus:ring-2 outline-none min-h-[80px] resize-none transition-colors ${createMode === 'request' ? 'focus:ring-[#5D4037]/20 focus:border-[#5D4037]' : 'focus:ring-[#2E7D32]/20 focus:border-[#2E7D32]'}`}
-                                    placeholder={createMode === "request" ? "궁금한 내용을 자유롭게 적어보세요." : "이웃들에게 도움이 될 만한 상세 상황을 적어보세요."}
-                                    value={replyText}
-                                    onChange={(e) => setReplyText(e.target.value)}
-                                />
-                            </div>
-
-                            <button
-                                onClick={handleCreateSubmit}
-                                className={`w-full mt-2 py-3.5 text-white text-sm font-bold rounded-xl transition-colors shadow-md flex justify-center items-center ${createMode === 'request' ? 'bg-[#5D4037] hover:bg-[#4E342E]' : 'bg-[#2E7D32] hover:bg-[#1B5E20]'}`}
-                            >
-                                {createMode === "request" ? "이웃에게 질문 등록하기" : "이웃에게 상황 공유하기"}
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
         </section>
     );
 }
