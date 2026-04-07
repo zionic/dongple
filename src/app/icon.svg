@@ -1,8 +1,0 @@
-<svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <!-- Brown Circle (Neighborhood/Location) -->
-  <circle cx="12" cy="14" r="10" fill="#795548"/>
-  <!-- Green Circle with Plus (Neighbor/Plus) -->
-  <circle cx="21" cy="21" r="7.5" fill="#2E7D32" stroke="#FDFBF7" stroke-width="1.5"/>
-  <!-- Plus Sign -->
-  <path d="M21 18V24M18 21H24" stroke="white" stroke-width="2" stroke-linecap="round"/>
-</svg>
