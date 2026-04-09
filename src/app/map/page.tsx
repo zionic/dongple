@@ -3,6 +3,8 @@
 import { ArrowLeft, MapPin, SlidersHorizontal, HelpCircle, Plus, X } from "lucide-react";
 import Link from "next/link";
 import { useState, useRef, useEffect } from "react";
+import { fetchLiveStatus, postLiveStatus, LiveStatus } from "@/services/statusService";
+import { subscribeLiveUpdates } from "@/services/statusService";
 
 declare global {
   interface Window {
@@ -11,72 +13,26 @@ declare global {
 }
 
 export default function MapPage() {
-    // 맵 마커 상태 (수원 정자동, 강남 등 테스트용 위경도)
-    const [markers, setMarkers] = useState([
-        { id: 1, lat: 37.3005, lng: 126.9934, status: '혼잡', color: 'bg-red-500' },
-        { id: 2, lat: 37.3021, lng: 126.9912, status: '여유', color: 'bg-green-500' },
-        { id: 3, lat: 37.2990, lng: 126.9950, status: '보통', color: 'bg-yellow-500' },
-        { id: 4, lat: 37.3035, lng: 126.9920, status: '답변대기', color: 'bg-[#5D4037]' },
-    ]);
+    // 맵 마커 상태 (DB 연동)
+    const [markers, setMarkers] = useState<LiveStatus[]>([]);
 
-    // 리스트 카드 상태
-    const [localCards, setLocalCards] = useState([
-        {
-            id: 1,
-            category: "공원",
-            place_name: "만석공원 주차장",
-            status: "혼잡",
-            status_color: "text-red-500",
-            icon: "🔴",
-            time_ago: "방금 전",
-            bg_class: "border-red-100 bg-red-50/40 hover:bg-red-50",
-            history: [
-                { status: "혼잡", text: "차가 꽉 차서 임시 주차장 이용해야 합니다.", time: "방금 전" },
-                { status: "여유", text: "지금은 자리 많아요.", time: "2시간 전" }
-            ]
-        },
-        {
-            id: 2,
-            category: "운동",
-            place_name: "라이프스포츠 수원",
-            status: "여유",
-            status_color: "text-green-500",
-            icon: "🟢",
-            time_ago: "12분 전",
-            bg_class: "border-green-100 bg-green-50/40 hover:bg-green-50",
-            history: [
-                { status: "여유", text: "수영장 레인 넉넉합니다.", time: "12분 전" },
-                { status: "초록", text: "헬스장 기구 대기 없네요.", time: "30분 전" }
-            ]
-        },
-        {
-            id: 3,
-            category: "마켓",
-            place_name: "정자시장 앞",
-            status: "보통",
-            status_color: "text-yellow-500",
-            icon: "🟡",
-            time_ago: "30분 전",
-            bg_class: "border-yellow-100 bg-yellow-50/40 hover:bg-yellow-50",
-            history: [
-                { status: "보통", text: "사람들이 조금씩 모이고 있어요.", time: "30분 전" }
-            ]
-        },
-        {
-            id: 4,
-            category: "기관",
-            place_name: "장안구청 민원 대기",
-            status: "답변대기",
-            status_color: "text-[#5D4037]",
-            icon: "🟠",
-            time_ago: "1시간 전",
-            bg_class: "border-[#D7CCC8] bg-[#EFEBE9]/50 hover:bg-[#EFEBE9]",
-            is_request: true,
-            history: [
-                { status: "답변대기", text: "여권과 대기표 어떤가요? 사람 많나요?", time: "1시간 전" }
-            ]
+    const loadData = async () => {
+        try {
+            const data = await fetchLiveStatus();
+            setMarkers(data);
+        } catch (error) {
+            console.error("지도 데이터 로드 실패:", error);
         }
-    ]);
+    };
+
+    useEffect(() => {
+        loadData();
+        const sub = subscribeLiveUpdates(loadData);
+        return () => { sub.unsubscribe(); };
+    }, []);
+
+    // 리스트 카드 상태 (마커 데이터와 동일하게 사용)
+    const localCards = markers;
 
     // 모달 관리 상태
     const [expandedCardId, setExpandedCardId] = useState<number | null>(null);
@@ -238,7 +194,7 @@ export default function MapPage() {
         { label: "혼잡", color: "bg-red-100 text-red-700 hover:bg-red-200 border-red-200", badgeColor: "text-red-500" }
     ];
 
-    const handleCreateSubmit = () => {
+    const handleCreateSubmit = async () => {
         if (!newPlaceName.trim()) {
             alert("장소 이름을 입력해주세요.");
             return;
@@ -249,65 +205,34 @@ export default function MapPage() {
         // Default values for request mode
         let newStatus = "답변대기";
         let newBadgeColor = "text-[#5D4037]";
-        let newBgClass = "border-[#D7CCC8] bg-[#EFEBE9]/50 hover:bg-[#EFEBE9]";
-        let newIcon = "🟠";
-        let markerColor = "bg-[#5D4037]";
         
         if (!isRequest) {
-            newStatus = selectedStatus;
-            if (newStatus === "여유") {
-                newBadgeColor = "text-green-500";
-                newBgClass = "border-green-100 bg-green-50/40 hover:bg-green-50";
-                newIcon = "🟢";
-                markerColor = "bg-green-500";
-            } else if (newStatus === "보통") {
-                newBadgeColor = "text-yellow-500";
-                newBgClass = "border-yellow-100 bg-yellow-50/40 hover:bg-yellow-50";
-                newIcon = "🟡";
-                markerColor = "bg-yellow-500";
-            } else if (newStatus === "혼잡") {
-                newBadgeColor = "text-red-500";
-                newBgClass = "border-red-100 bg-red-50/40 hover:bg-red-50";
-                newIcon = "🔴";
-                markerColor = "bg-red-500";
+            const statusOpt = statusOptions.find(opt => opt.label === selectedStatus);
+            if (statusOpt) {
+                newStatus = statusOpt.label;
+                newBadgeColor = statusOpt.badgeColor;
             }
         }
 
-        const newHistoryItem = {
-            status: newStatus,
-            text: replyText.trim() ? replyText : (isRequest ? "이 장소의 현황이 궁금합니다." : "새로운 상황이 공유되었습니다."),
-            time: "방금 전"
-        };
-
-        const newCard = {
-            id: Date.now(),
-            category: newCategory,
-            place_name: newPlaceName,
-            status: newStatus,
-            status_color: newBadgeColor,
-            icon: newIcon,
-            time_ago: "방금 전",
-            bg_class: newBgClass,
-            is_request: isRequest,
-            history: [newHistoryItem]
-        };
-
-        const newMarker = {
-            id: Date.now(),
-            lat: mapRef.current ? mapRef.current.getCenter().y : 37.3015,
-            lng: mapRef.current ? mapRef.current.getCenter().x : 126.9930,
-            status: newStatus,
-            color: markerColor
-        };
-
-        setLocalCards([newCard, ...localCards]);
-        setMarkers([...markers, newMarker]);
-
-        setIsCreateModalOpen(false);
-        setNewPlaceName("");
-        setNewCategory("기타");
-        setReplyText("");
-        setSelectedStatus("보통");
+        try {
+            await postLiveStatus({
+                place_name: newPlaceName,
+                category: newCategory,
+                status: newStatus,
+                status_color: newBadgeColor,
+                is_request: isRequest,
+                verified_count: 1,
+                latitude: mapRef.current ? mapRef.current.getCenter().y : 37.3015,
+                longitude: mapRef.current ? mapRef.current.getCenter().x : 126.9930,
+            });
+            setIsCreateModalOpen(false);
+            setNewPlaceName("");
+            setNewCategory("기타");
+            setReplyText("");
+            setSelectedStatus("보통");
+        } catch (error) {
+            console.error("지도 등록 실패:", error);
+        }
     };
 
     return (
@@ -394,14 +319,19 @@ export default function MapPage() {
                                 <div>
                                     <span className="text-[10px] bg-white border border-gray-200 px-2 py-0.5 rounded-lg text-gray-600 font-bold shadow-sm">{card.category}</span>
                                     <h4 className="font-bold text-[#3E2723] mt-1.5 text-base">{card.place_name}</h4>
-                                    <p className={`${card.status_color} text-xs font-bold mt-1 flex items-center`}>
-                                        {card.icon} {card.status} <span className="text-gray-400 font-medium ml-1.5">{card.time_ago}</span>
-                                    </p>
+                                        <div className="flex flex-col items-end">
+                                            <span className={`${card.status_color} text-xs font-bold mt-1 flex items-center`}>
+                                                {card.status === "여유" ? "🟢" : card.status === "보통" ? "🟡" : card.status === "혼잡" ? "🔴" : "🟠"} {card.status}
+                                            </span>
+                                            <span className="text-gray-400 text-[10px] mt-0.5">
+                                                {new Date(card.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <div className={`w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-sm border shrink-0 ${card.status_color}`}>
+                                        <MapPin className={card.status_color} size={24} />
+                                    </div>
                                 </div>
-                                <div className={`w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-sm border shrink-0 ${card.bg_class.split(' ')[0]}`}>
-                                    <MapPin className={card.status_color} size={24} />
-                                </div>
-                            </div>
 
                             {/* 아코디언 확장 영역 (이력 정보) */}
                             {expandedCardId === card.id && card.history && (

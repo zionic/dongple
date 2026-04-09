@@ -4,6 +4,8 @@ import { useState, useEffect } from "react";
 import { Clock, CheckCircle2, Plus, HelpCircle, AlertCircle, X } from "lucide-react";
 import Link from "next/link";
 import { useUIStore } from "@/lib/store/uiStore";
+import { fetchLiveStatus, postLiveStatus, verifyStatus, subscribeLiveUpdates, LiveStatus } from "@/services/statusService";
+import { v4 as uuidv4 } from 'uuid'; // uuid 패키지가 없다면 단순 랜덤 문자열로 대체 가능하지만 여기서는 일단 선언 예시
 
 interface LiveStatus {
     id: string;
@@ -19,56 +21,40 @@ interface LiveStatus {
 }
 
 export default function LiveStatusBoard() {
-    // 백엔드 연동 전까지 사용할 정교한 목업 데이터
-    const [liveUpdates, setLiveUpdates] = useState<LiveStatus[]>([
-        {
-            id: "1",
-            place_name: "만석공원 주차장",
-            category: "공원",
-            status: "여유",
-            status_color: "text-green-500",
-            verified_count: 8,
-            is_request: false,
-            time_ago: "5분 전",
-            history: [
-                { status: "여유", status_color: "text-green-500", text: "자리 넉넉하고 편합니다.", time: "5분 전" }
-            ]
-        },
-        {
-            id: "req-1",
-            place_name: "장안구청 민원 대기",
-            category: "기관",
-            status: "인증 대기 중",
-            status_color: "text-orange-500",
-            verified_count: 0,
-            is_request: true,
-            time_ago: "방금 전"
-        },
-        {
-            id: "2",
-            place_name: "라이프스포츠 수원",
-            category: "운동",
-            status: "보통",
-            status_color: "text-yellow-500",
-            verified_count: 15,
-            is_request: false,
-            time_ago: "12분 전"
-        },
-        {
-            id: "3",
-            place_name: "정자시장 입구",
-            category: "마켓",
-            status: "혼잡",
-            status_color: "text-red-500",
-            verified_count: 23,
-            is_request: false,
-            time_ago: "24분 전",
-            history: [
-                { status: "혼잡", status_color: "text-red-500", text: "장날이라 사람이 미어터져요.", time: "24분 전" },
-                { status: "보통", status_color: "text-yellow-500", text: "조금씩 붐비기 시작합니다.", time: "2시간 전" }
-            ]
-        },
-    ]);
+    const [liveUpdates, setLiveUpdates] = useState<LiveStatus[]>([]);
+    const [userId, setUserId] = useState<string>("");
+
+    // 로컬 스토리지에서 임시 사용자 ID 관리
+    useEffect(() => {
+        let id = localStorage.getItem('dongple_temp_id');
+        if (!id) {
+            id = `user-${Math.random().toString(36).substr(2, 9)}`;
+            localStorage.setItem('dongple_temp_id', id);
+        }
+        setUserId(id);
+    }, []);
+
+    // 초기 데이터 로드 및 실시간 구독
+    const loadData = async () => {
+        try {
+            const data = await fetchLiveStatus();
+            setLiveUpdates(data);
+        } catch (error) {
+            console.error("데이터 로드 실패:", error);
+        }
+    };
+
+    useEffect(() => {
+        loadData();
+
+        const subscription = subscribeLiveUpdates(() => {
+            loadData(); // 대안으로 페이로드 분석하여 부분 업데이트도 가능하지만, 단순 구현을 위해 재조회
+        });
+
+        return () => {
+            subscription.unsubscribe();
+        };
+    }, []);
 
     const openBottomSheet = useUIStore((state) => state.openBottomSheet);
     const [currentIndex, setCurrentIndex] = useState(0);
@@ -88,49 +74,36 @@ export default function LiveStatusBoard() {
         { label: "혼잡", color: "bg-red-100 text-red-700 hover:bg-red-200 border-red-200", badgeColor: "text-red-500" }
     ];
 
-    const handleAgree = (id: string) => {
-        setLiveUpdates(prev => prev.map(item => {
-            if (item.id === id) {
-                return { ...item, verified_count: item.verified_count + 1 };
-            }
-            return item;
-        }));
+    const handleAgree = async (id: string) => {
+        if (!userId) return;
+        try {
+            await verifyStatus(id, userId);
+            // 실시간 구독이 데이터를 다시 불러오므로 여기서 별도 갱신 불필요 (또는 낙관적 업데이트 가능)
+        } catch (error) {
+            alert("이미 인증하셨거나 처리 중 에러가 발생했습니다.");
+        }
     };
 
-    const handleReplySubmit = ({ selectedStatus, replyText, id }: any) => {
+    const handleReplySubmit = async ({ selectedStatus, replyText, id }: any) => {
         const option = statusOptions.find(opt => opt.label === selectedStatus);
+        const newStatus = option ? option.label : "보통";
+        const newBadgeColor = option ? option.badgeColor : "text-gray-500";
 
-        setLiveUpdates(prev => prev.map(item => {
-            if (item.id === id) {
-                const newStatus = option ? option.label : "상태 변경됨";
-                const newBadgeColor = option ? option.badgeColor : "text-gray-500";
-                const nowTime = "방금 전";
-
-                const newHistoryItem = {
-                    status: newStatus,
-                    status_color: newBadgeColor,
-                    text: replyText.trim() ? replyText : "새로운 상태가 제보되었습니다.",
-                    time: nowTime
-                };
-
-                const updatedHistory = [newHistoryItem, ...(item.history || [])].slice(0, 5);
-
-                return {
-                    ...item,
-                    is_request: false,
-                    status: newStatus,
-                    status_color: newBadgeColor,
-                    verified_count: 1, // 새로운 상태로 덮어씌워지므로 인증 카운트 초기화
-                    time_ago: nowTime,
-                    history: updatedHistory
-                };
-            }
-            return item;
-        }));
+        try {
+            await postLiveStatus({
+                place_name: liveUpdates.find(item => item.id === id)?.place_name || "",
+                category: liveUpdates.find(item => item.id === id)?.category || "기타",
+                status: newStatus,
+                status_color: newBadgeColor,
+                is_request: false,
+                verified_count: 1
+            });
+        } catch (error) {
+            console.error("업데이트 실패:", error);
+        }
     };
 
-    const handleCreateSubmit = ({ newPlaceName, newCategory, selectedStatus, replyText, mode }: any) => {
-        const nowTime = "방금 전";
+    const handleCreateSubmit = async ({ newPlaceName, newCategory, selectedStatus, replyText, mode }: any) => {
         const isRequest = mode === "request";
         
         let newStatus = "답변대기";
@@ -144,26 +117,18 @@ export default function LiveStatusBoard() {
             }
         }
 
-        const newHistoryItem = {
-            status: newStatus,
-            status_color: newBadgeColor,
-            text: replyText.trim() ? replyText : (isRequest ? "이 장소의 현황이 궁금합니다." : "새로운 상황이 공유되었습니다."),
-            time: nowTime
-        };
-
-        const newUpdate: LiveStatus = {
-            id: `temp-${Date.now()}`,
-            place_name: newPlaceName,
-            category: newCategory,
-            status: newStatus,
-            status_color: newBadgeColor,
-            verified_count: 1, 
-            is_request: isRequest,
-            time_ago: nowTime,
-            history: [newHistoryItem]
-        };
-
-        setLiveUpdates([newUpdate, ...liveUpdates]);
+        try {
+            await postLiveStatus({
+                place_name: newPlaceName,
+                category: newCategory,
+                status: newStatus,
+                status_color: newBadgeColor,
+                is_request: isRequest,
+                verified_count: 1
+            });
+        } catch (error) {
+            console.error("등록 실패:", error);
+        }
     };
 
     const getCardBgColor = (status: string, is_request: boolean) => {
@@ -243,7 +208,9 @@ export default function LiveStatusBoard() {
                     {/* 오른쪽 액션 및 정보 영역 */}
                     <div className="flex items-center space-x-3 shrink-0 pl-2">
                         <div className="flex flex-col items-end">
-                            <span className="text-[10px] text-gray-400 font-medium">{liveUpdates[currentIndex].time_ago}</span>
+                            <span className="text-[10px] text-gray-400 font-medium">
+                                {new Date(liveUpdates[currentIndex].created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </span>
                             <span className="text-[10px] text-gray-500 font-bold bg-white/60 px-1.5 py-0.5 rounded-md mt-0.5">{liveUpdates[currentIndex].verified_count}명 인증</span>
                         </div>
                         <button 
