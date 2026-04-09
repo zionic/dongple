@@ -2,15 +2,21 @@
 
 import { ArrowLeft, MapPin, SlidersHorizontal, HelpCircle, Plus, X } from "lucide-react";
 import Link from "next/link";
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
+
+declare global {
+  interface Window {
+    naver: any;
+  }
+}
 
 export default function MapPage() {
-    // 맵 마커 상태
+    // 맵 마커 상태 (수원 정자동, 강남 등 테스트용 위경도)
     const [markers, setMarkers] = useState([
-        { id: 1, top: '40%', left: '42%', status: '혼잡', color: 'bg-red-500' },
-        { id: 2, top: '55%', left: '60%', status: '여유', color: 'bg-green-500' },
-        { id: 3, top: '30%', left: '75%', status: '보통', color: 'bg-yellow-500' },
-        { id: 4, top: '70%', left: '35%', status: '답변대기', color: 'bg-[#5D4037]' },
+        { id: 1, lat: 37.3005, lng: 126.9934, status: '혼잡', color: 'bg-red-500' },
+        { id: 2, lat: 37.3021, lng: 126.9912, status: '여유', color: 'bg-green-500' },
+        { id: 3, lat: 37.2990, lng: 126.9950, status: '보통', color: 'bg-yellow-500' },
+        { id: 4, lat: 37.3035, lng: 126.9920, status: '답변대기', color: 'bg-[#5D4037]' },
     ]);
 
     // 리스트 카드 상태
@@ -122,6 +128,110 @@ export default function MapPage() {
         }
     };
 
+    const mapRef = useRef<any>(null);
+    const markersRef = useRef<any[]>([]);
+
+    useEffect(() => {
+        // 네이버 지도가 로드되었는지 체크 및 맵 초기화
+        let initTimer: NodeJS.Timeout;
+        const initMap = () => {
+            if (!window.naver || !window.naver.maps) {
+                initTimer = setTimeout(initMap, 200);
+                return;
+            }
+
+            const mapOptions = {
+                center: new window.naver.maps.LatLng(37.3015, 126.9930), // 수원 장안구 인근 메인
+                zoom: 15,
+                logoControl: false,
+                mapDataControl: false,
+                scaleControl: false,
+                mapTypeControl: false,
+            };
+
+            const map = new window.naver.maps.Map('map-container', mapOptions);
+            mapRef.current = map;
+            renderMarkers(); // 맵 초기화 후 첫 마커 렌더링
+        };
+
+        if (typeof window !== 'undefined') {
+            initMap();
+        }
+
+        return () => {
+            clearTimeout(initTimer);
+            if (mapRef.current) {
+                mapRef.current.destroy();
+                mapRef.current = null;
+            }
+        };
+    }, []);
+
+    // expandedCardId나 markers가 바뀔 때 마커 디자인 다시 그리기 (리액트 상태를 일반 DOM에 반영)
+    useEffect(() => {
+        if (mapRef.current) {
+            renderMarkers();
+        }
+    }, [markers, expandedCardId, sheetHeight]);
+
+    const renderMarkers = () => {
+        // 기존 렌더링된 마커 배열 지우기
+        markersRef.current.forEach(m => m.setMap(null));
+        markersRef.current = [];
+
+        if (!window.naver || !window.naver.maps || !mapRef.current) return;
+
+        markers.forEach(m => {
+            const isSelected = expandedCardId === m.id;
+            
+            // Taildwind 기반 마커 HTML 디자인 
+            const markerContent = `
+                <div class="flex flex-col items-center transform -translate-x-1/2 -translate-y-full cursor-pointer ${isSelected ? 'scale-125 z-50' : 'hover:scale-110 z-10'}" style="width: auto; height: auto;">
+                    ${isSelected ? `
+                        <div class="absolute -top-7 whitespace-nowrap bg-gray-800 text-white text-[10px] px-2 py-1 rounded-md shadow-lg flex items-center justify-center font-bold">
+                            여기 있어요!
+                            <div class="absolute -bottom-1 w-2 h-2 bg-gray-800 rotate-45"></div>
+                        </div>
+                    ` : ''}
+                    <div class="px-2.5 py-1 ${isSelected ? 'ring-4 ring-white/50 shadow-xl' : 'shadow-md shadow-black/20'} rounded-full text-white text-[11px] font-bold ${m.color}">
+                        ${m.status}
+                    </div>
+                    <div class="w-2.5 h-2.5 ${m.color} rotate-45 transform -translate-y-1.5 shadow-sm"></div>
+                    ${isSelected ? `<div class="absolute bottom-0 w-8 h-3 rounded-full blur-sm opacity-50 animate-pulse ${m.color}" style="transform: translateY(50%)"></div>` : ''}
+                </div>
+            `;
+
+            const marker = new window.naver.maps.Marker({
+                position: new window.naver.maps.LatLng(m.lat, m.lng),
+                map: mapRef.current,
+                icon: {
+                    content: markerContent,
+                    size: new window.naver.maps.Size(40, 50),
+                    anchor: new window.naver.maps.Point(20, 50),
+                }
+            });
+
+            // 마커 클릭 이벤트 (리액트 상태 변경 연동)
+            window.naver.maps.Event.addListener(marker, 'click', () => {
+                const isTogglingOff = expandedCardId === m.id;
+                setExpandedCardId(isTogglingOff ? null : m.id);
+                if (!isTogglingOff) {
+                    if (sheetHeight < 30) setSheetHeight(50);
+                    // 중앙으로 지도 이동
+                    mapRef.current.panTo(marker.getPosition());
+                    setTimeout(() => {
+                        const cardEl = document.getElementById('card-' + m.id);
+                        if (cardEl) {
+                            cardEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        }
+                    }, 150);
+                }
+            });
+
+            markersRef.current.push(marker);
+        });
+    };
+
     const statusOptions = [
         { label: "여유", color: "bg-green-100 text-green-700 hover:bg-green-200 border-green-200", badgeColor: "text-green-500" },
         { label: "보통", color: "bg-yellow-100 text-yellow-700 hover:bg-yellow-200 border-yellow-200", badgeColor: "text-yellow-500" },
@@ -184,8 +294,8 @@ export default function MapPage() {
 
         const newMarker = {
             id: Date.now(),
-            top: '50%',
-            left: '50%',
+            lat: mapRef.current ? mapRef.current.getCenter().y : 37.3015,
+            lng: mapRef.current ? mapRef.current.getCenter().x : 126.9930,
             status: newStatus,
             color: markerColor
         };
@@ -216,57 +326,9 @@ export default function MapPage() {
                 </button>
             </header>
 
-            {/* 가상의 지도 배경 (패턴으로 지도 느낌 시뮬레이션) */}
+            {/* 네이버 지도 객체가 들어갈 컨테이너 */}
             <div className="relative flex-1 w-full translate-y-12">
-                <div className="absolute inset-0 opacity-20 pointer-events-none" style={{ backgroundImage: 'radial-gradient(#2E7D32 1.5px, transparent 1.5px)', backgroundSize: '24px 24px' }}></div>
-                
-                {/* 모의 마커 렌더링 핀 */}
-                {markers.map(m => {
-                    const isSelected = expandedCardId === m.id;
-                    return (
-                        <div 
-                            key={m.id} 
-                            onClick={() => {
-                                const isTogglingOff = isSelected;
-                                setExpandedCardId(isTogglingOff ? null : m.id);
-                                if (!isTogglingOff) {
-                                    // 바텀 시트가 닫혀있으면 올려서 카드가 보이도록 함
-                                    if (sheetHeight < 30) setSheetHeight(50);
-                                    
-                                    // 부드러운 스크롤 이동
-                                    setTimeout(() => {
-                                        const cardEl = document.getElementById(`card-${m.id}`);
-                                        if (cardEl) {
-                                            cardEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                                        }
-                                    }, 150);
-                                }
-                            }}
-                            className={`absolute flex flex-col items-center transform -translate-x-1/2 -translate-y-full transition-all cursor-pointer ${isSelected ? 'scale-125 z-50' : 'hover:scale-110 z-10'}`} 
-                            style={{ top: m.top, left: m.left }}
-                        >
-                            {/* 선택 시 상단에 뜨는 귀여운 말풍선 */}
-                            {isSelected && (
-                                <div className="absolute -top-7 whitespace-nowrap bg-gray-800 text-white text-[10px] px-2 py-1 rounded-md shadow-lg animate-in fade-in zoom-in slide-in-from-bottom-1 flex items-center justify-center font-bold">
-                                    여기 있어요!
-                                    <div className="absolute -bottom-1 w-2 h-2 bg-gray-800 rotate-45" />
-                                </div>
-                            )}
-
-                            <div className={`px-2.5 py-1 ${isSelected ? 'ring-4 ring-white/50 shadow-xl' : 'shadow-md shadow-black/20'} rounded-full text-white text-[11px] font-bold animate-in fade-in zoom-in ${m.color}`}>
-                                {m.status}
-                            </div>
-                            
-                            {/* 핀 꼬리 부분 */}
-                            <div className={`w-2.5 h-2.5 ${m.color} rotate-45 transform -translate-y-1.5 shadow-sm`} />
-                            
-                            {/* 바닥 그림자 (파동 효과) */}
-                            {isSelected && (
-                                <div className={`absolute bottom-0 w-8 h-3 rounded-full blur-sm opacity-50 animate-pulse ${m.color}`} style={{ transform: 'translateY(50%)' }} />
-                            )}
-                        </div>
-                    );
-                })}
+                <div id="map-container" className="absolute top-0 bottom-12 left-0 w-full outline-none bg-gray-100" />
             </div>
 
             {/* 하단 바텀 시트 (리스트 뷰 오버레이) - flex col로 스크롤 영역 분리 */}
