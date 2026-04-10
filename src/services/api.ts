@@ -23,13 +23,85 @@ export interface PlaceData {
 }
 
 /**
- * 네이버 로컬 API를 사용하여 좌표를 주소로 변환
+ * 네이버 로컬 API를 사용하여 좌표를 주소로 변환 (Reverse Geocoding)
  */
 export async function getAddressFromCoords(lat: number, lng: number): Promise<string> {
-    // TODO: 실제 Naver Reverse Geocoding API 호출 로직 (Client ID/Secret 필요)
-    // 현재는 테스트를 위해 모킹된 값을 반환합니다.
-    console.log(`Fetching address for: ${lat}, ${lng}`);
-    return "역삼1동";
+    if (typeof window === 'undefined' || !window.naver || !window.naver.maps || !window.naver.maps.Service) {
+        return "주소 정보를 불러올 수 없습니다.";
+    }
+
+    return new Promise((resolve) => {
+        window.naver.maps.Service.reverseGeocode({
+            location: new window.naver.maps.LatLng(lat, lng),
+        }, (status: any, response: any) => {
+            if (status !== window.naver.maps.Service.Status.OK) {
+                console.error('Reverse Geocoding 실패:', status);
+                resolve("위치 정보를 찾을 수 없음");
+                return;
+            }
+
+            try {
+                // v2 응답 구조에서 주소 텍스트 추출
+                const addrV2 = response.v2.address;
+                const results = response.v2.results;
+
+                if (addrV2 && (addrV2.roadAddress || addrV2.jibunAddress)) {
+                    resolve(addrV2.roadAddress || addrV2.jibunAddress);
+                } else if (results && results.length > 0) {
+                    const region = results[0].region;
+                    const parts = [
+                        region.area1?.name,
+                        region.area2?.name,
+                        region.area3?.name,
+                        region.area4?.name
+                    ].filter(Boolean);
+                    resolve(parts.join(' ') || "검색된 주소 부근");
+                } else {
+                    resolve("주소 정보 없음");
+                }
+            } catch (err) {
+                console.error('주소 파싱 에러:', err);
+                resolve("주소 변환 중 오류 발생");
+            }
+        });
+    });
+}
+
+/**
+ * 주소를 좌표로 변환 (Geocoding) - 검색 기능용
+ */
+export async function getCoordsFromAddress(address: string): Promise<{ lat: number, lng: number } | null> {
+    if (typeof window === 'undefined' || !window.naver || !window.naver.maps || !window.naver.maps.Service) {
+        return null;
+    }
+
+    return new Promise((resolve) => {
+        window.naver.maps.Service.geocode({
+            query: address
+        }, (status: any, response: any) => {
+            if (status !== window.naver.maps.Service.Status.OK) {
+                console.error('Geocoding 실패:', status);
+                resolve(null);
+                return;
+            }
+
+            try {
+                const addresses = response.v2.addresses;
+                if (addresses && addresses.length > 0) {
+                    const item = addresses[0];
+                    resolve({
+                        lat: parseFloat(item.y),
+                        lng: parseFloat(item.x)
+                    });
+                } else {
+                    resolve(null);
+                }
+            } catch (err) {
+                console.error('좌표 변환 에러:', err);
+                resolve(null);
+            }
+        });
+    });
 }
 
 /**

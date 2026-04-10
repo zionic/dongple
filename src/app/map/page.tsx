@@ -1,16 +1,33 @@
 "use client";
 
-import { ArrowLeft, MapPin, SlidersHorizontal, HelpCircle, Plus, X } from "lucide-react";
+import { 
+    ArrowLeft, MapPin, SlidersHorizontal, HelpCircle, Plus, X, 
+    Home, Trees, Dumbbell, Coffee, ShoppingBag, Store, ParkingCircle, HeartPulse, Building2 
+} from "lucide-react";
 import Link from "next/link";
 import { useState, useRef, useEffect } from "react";
-import { fetchLiveStatus, postLiveStatus, LiveStatus } from "@/services/statusService";
-import { subscribeLiveUpdates } from "@/services/statusService";
+import { fetchLiveStatus, postLiveStatus, LiveStatus, subscribeLiveUpdates } from "@/services/statusService";
+import { getAddressFromCoords, getCoordsFromAddress } from "@/services/api";
+import { Search } from "lucide-react";
+import Script from "next/script";
 
 declare global {
   interface Window {
     naver: any;
   }
 }
+
+const CATEGORIES = [
+    { id: "기타", label: "기타", icon: Home },
+    { id: "공원", label: "공원", icon: Trees },
+    { id: "운동", label: "운동", icon: Dumbbell },
+    { id: "카페/식당", label: "카페/식당", icon: Coffee },
+    { id: "마켓", label: "마켓", icon: ShoppingBag },
+    { id: "편의점", label: "편의점", icon: Store },
+    { id: "주차장", label: "주차장", icon: ParkingCircle },
+    { id: "병원/약국", label: "병원/약국", icon: HeartPulse },
+    { id: "기관", label: "기관", icon: Building2 },
+];
 
 export default function MapPage() {
     // 맵 마커 상태 (DB 연동)
@@ -42,6 +59,15 @@ export default function MapPage() {
     const [newCategory, setNewCategory] = useState("기타");
     const [selectedStatus, setSelectedStatus] = useState<string>("보통");
     const [replyText, setReplyText] = useState("");
+    const [searchQuery, setSearchQuery] = useState("");
+    const [isSearching, setIsSearching] = useState(false);
+    const [currentAddress, setCurrentAddress] = useState<string>("");
+    
+    // 카테고리 캐러셀 드래그 상태
+    const scrollRef = useRef<HTMLDivElement>(null);
+    const [isDragMap, setIsDragMap] = useState(false);
+    const [startXDrag, setStartXDrag] = useState(0);
+    const [scrollLeftVal, setScrollLeftVal] = useState(0);
     
     // 바텀 시트 드래그 이벤트 상태
     const [sheetHeight, setSheetHeight] = useState(50);
@@ -86,18 +112,61 @@ export default function MapPage() {
 
     const mapRef = useRef<any>(null);
     const markersRef = useRef<any[]>([]);
+    const [mapError, setMapError] = useState<string | null>(null);
 
     useEffect(() => {
-        // 네이버 지도가 로드되었는지 체크 및 맵 초기화
-        let initTimer: NodeJS.Timeout;
-        const initMap = () => {
-            if (!window.naver || !window.naver.maps) {
-                initTimer = setTimeout(initMap, 200);
-                return;
-            }
+        if (mapRef.current) {
+            renderMarkers();
+        }
+    }, [markers, expandedCardId, sheetHeight]);
 
+    const handleSearch = async () => {
+        if (!searchQuery.trim()) return;
+        setIsSearching(true);
+        const coords = await getCoordsFromAddress(searchQuery);
+        if (coords && mapRef.current) {
+            const moveLatLng = new window.naver.maps.LatLng(coords.lat, coords.lng);
+            mapRef.current.setCenter(moveLatLng);
+            mapRef.current.setZoom(16);
+        } else {
+            alert("검색 결과가 없습니다.");
+        }
+        setIsSearching(false);
+    };
+
+    // 캐러셀 드래그 핸들러
+    const onDragStart = (e: React.MouseEvent) => {
+        if (!scrollRef.current) return;
+        setIsDragMap(true);
+        setStartXDrag(e.pageX - scrollRef.current.offsetLeft);
+        setScrollLeftVal(scrollRef.current.scrollLeft);
+    };
+
+    const onDragEnd = () => {
+        setIsDragMap(false);
+    };
+
+    const onDragMove = (e: React.MouseEvent) => {
+        if (!isDragMap || !scrollRef.current) return;
+        e.preventDefault();
+        const x = e.pageX - scrollRef.current.offsetLeft;
+        const walk = (x - startXDrag) * 2; // 스크롤 속도 조절
+        scrollRef.current.scrollLeft = scrollLeftVal - walk;
+    };
+
+    const initMap = () => {
+        if (!window.naver || !window.naver.maps) return;
+        
+        const container = document.getElementById('map-container');
+        if (!container) {
+            // 컨테이너가 아직 없으면 잠시 후 재시도
+            setTimeout(initMap, 100);
+            return;
+        }
+
+        try {
             const mapOptions = {
-                center: new window.naver.maps.LatLng(37.3015, 126.9930), // 수원 장안구 인근 메인
+                center: new window.naver.maps.LatLng(37.3015, 126.9930),
                 zoom: 15,
                 logoControl: false,
                 mapDataControl: false,
@@ -105,30 +174,14 @@ export default function MapPage() {
                 mapTypeControl: false,
             };
 
-            const map = new window.naver.maps.Map('map-container', mapOptions);
+            const map = new window.naver.maps.Map(container, mapOptions);
             mapRef.current = map;
-            renderMarkers(); // 맵 초기화 후 첫 마커 렌더링
-        };
-
-        if (typeof window !== 'undefined') {
-            initMap();
-        }
-
-        return () => {
-            clearTimeout(initTimer);
-            if (mapRef.current) {
-                mapRef.current.destroy();
-                mapRef.current = null;
-            }
-        };
-    }, []);
-
-    // expandedCardId나 markers가 바뀔 때 마커 디자인 다시 그리기 (리액트 상태를 일반 DOM에 반영)
-    useEffect(() => {
-        if (mapRef.current) {
             renderMarkers();
+        } catch (err) {
+            console.error("지도 초기화 에러:", err);
+            setMapError("지도를 초기화하는 중 오류가 발생했습니다.");
         }
-    }, [markers, expandedCardId, sheetHeight]);
+    };
 
     const renderMarkers = () => {
         // 기존 렌더링된 마커 배열 지우기
@@ -158,7 +211,7 @@ export default function MapPage() {
             `;
 
             const marker = new window.naver.maps.Marker({
-                position: new window.naver.maps.LatLng(m.lat, m.lng),
+                position: new window.naver.maps.LatLng(m.latitude || 37.3015, m.longitude || 126.9930),
                 map: mapRef.current,
                 icon: {
                     content: markerContent,
@@ -237,6 +290,11 @@ export default function MapPage() {
 
     return (
         <div className="relative w-full h-[100dvh] bg-[#E5E3DF] overflow-hidden flex flex-col max-w-md mx-auto shadow-2xl">
+            <Script 
+                src={`https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=${process.env.NEXT_PUBLIC_NAVER_MAP_CLIENT_ID}&submodules=geocoder`}
+                onLoad={initMap}
+                strategy="afterInteractive"
+            />
             {/* 상단 맵 프로팅 헤더 영역 */}
             <header className="absolute top-0 left-0 w-full z-20 px-4 h-16 flex items-center justify-between bg-white/70 backdrop-blur-md border-b border-gray-100 shadow-sm">
                 <Link href="/" className="p-2 -ml-2 text-gray-700 hover:text-[#2E7D32] transition-colors rounded-full hover:bg-gray-100">
@@ -251,9 +309,48 @@ export default function MapPage() {
                 </button>
             </header>
 
+            {/* 상단 주소 검색창 */}
+            <div className="absolute top-20 left-4 right-4 z-20">
+                <div className="relative group">
+                    <input 
+                        type="text" 
+                        placeholder="동네 장소나 주소 검색..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        onKeyDown={async (e) => {
+                            if (e.key === 'Enter' && searchQuery.trim()) {
+                                e.preventDefault();
+                                handleSearch();
+                            }
+                        }}
+                        className="w-full h-12 pl-12 pr-4 bg-white/95 backdrop-blur-md rounded-2xl shadow-lg border border-gray-100 focus:ring-2 focus:ring-[#2E7D32]/20 outline-none text-sm transition-all"
+                    />
+                    <Search 
+                        onClick={() => handleSearch()}
+                        className={`absolute left-4 top-1/2 -translate-y-1/2 cursor-pointer hover:scale-110 active:scale-95 transition-transform ${isSearching ? 'text-[#2E7D32] animate-pulse' : 'text-gray-400 font-bold'}`} 
+                        size={22} 
+                    />
+                </div>
+            </div>
+
             {/* 네이버 지도 객체가 들어갈 컨테이너 */}
-            <div className="relative flex-1 w-full translate-y-12">
-                <div id="map-container" className="absolute top-0 bottom-12 left-0 w-full outline-none bg-gray-100" />
+            <div className="relative flex-1 w-full" style={{ minHeight: 'calc(100vh - 64px - 15vh)' }}>
+                <div id="map-container" className="absolute inset-0 w-full h-full outline-none bg-gray-100" />
+                {mapError && (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center bg-gray-100/80 backdrop-blur-sm z-10 px-6 text-center">
+                        <div className="bg-white p-6 rounded-2xl shadow-xl border border-red-100">
+                            <HelpCircle size={40} className="text-red-400 mx-auto mb-3" />
+                            <p className="text-sm font-bold text-gray-800 mb-2">{mapError}</p>
+                            <p className="text-xs text-gray-500">.env.local 설정 후 앱을 재시작해 주세요.</p>
+                            <button 
+                                onClick={() => window.location.reload()}
+                                className="mt-4 px-4 py-2 bg-gray-800 text-white text-xs font-bold rounded-lg hover:bg-black transition-colors"
+                            >
+                                페이지 새로고침
+                            </button>
+                        </div>
+                    </div>
+                )}
             </div>
 
             {/* 하단 바텀 시트 (리스트 뷰 오버레이) - flex col로 스크롤 영역 분리 */}
@@ -278,14 +375,32 @@ export default function MapPage() {
                         <h3 className="font-bold text-[#3E2723] text-lg">주변 현황 <span className="text-[#2E7D32] ml-0.5">{localCards.length}</span>건</h3>
                         <div className="flex space-x-1.5">
                             <button 
-                                onClick={() => { setCreateMode("request"); setIsCreateModalOpen(true); }}
+                                onClick={async () => { 
+                                    setCreateMode("request"); 
+                                    setIsCreateModalOpen(true); 
+                                    if (mapRef.current) {
+                                        const center = mapRef.current.getCenter();
+                                        const addr = await getAddressFromCoords(center.y, center.x);
+                                        setCurrentAddress(addr);
+                                        setNewPlaceName(addr);
+                                    }
+                                }}
                                 className="text-[10px] text-[#5D4037] border border-[#D7CCC8] bg-[#EFEBE9] px-2.5 py-1.5 rounded-lg flex items-center space-x-1 font-bold hover:bg-[#D7CCC8]/50 transition-colors shadow-sm"
                             >
                                 <HelpCircle size={10} />
                                 <span>요청</span>
                             </button>
                             <button 
-                                onClick={() => { setCreateMode("share"); setIsCreateModalOpen(true); }}
+                                onClick={async () => { 
+                                    setCreateMode("share"); 
+                                    setIsCreateModalOpen(true); 
+                                    if (mapRef.current) {
+                                        const center = mapRef.current.getCenter();
+                                        const addr = await getAddressFromCoords(center.y, center.x);
+                                        setCurrentAddress(addr);
+                                        setNewPlaceName(addr);
+                                    }
+                                }}
                                 className="text-[10px] text-white bg-[#2E7D32] px-2.5 py-1.5 rounded-lg flex items-center space-x-1 font-bold hover:bg-[#1B5E20] transition-colors shadow-sm"
                             >
                                 <Plus size={10} />
@@ -402,7 +517,14 @@ export default function MapPage() {
                         {/* Body */}
                         <div className="p-5 space-y-4">
                             <div>
-                                <label className="block text-xs font-bold text-gray-700 mb-1.5">장소 이름 (필수)</label>
+                                <label className="block text-xs font-bold text-gray-700 mb-1.5 flex items-center justify-between">
+                                    <span>장소 이름 (필수)</span>
+                                    {currentAddress && (
+                                        <span className="text-[10px] text-[#2E7D32] bg-green-50 px-1.5 py-0.5 rounded flex items-center">
+                                            <MapPin size={8} className="mr-0.5" /> 현위치 주소 자동입력됨
+                                        </span>
+                                    )}
+                                </label>
                                 <input
                                     type="text"
                                     placeholder="어느 장소인가요?"
@@ -410,21 +532,48 @@ export default function MapPage() {
                                     onChange={(e) => setNewPlaceName(e.target.value)}
                                     className={`w-full text-sm p-3 border border-gray-200 rounded-xl focus:ring-2 outline-none transition-colors ${createMode === 'request' ? 'focus:ring-[#5D4037]/20 focus:border-[#5D4037]' : 'focus:ring-[#2E7D32]/20 focus:border-[#2E7D32]'}`}
                                 />
+                                {currentAddress && (
+                                    <p className="text-[10px] text-gray-400 mt-1.5 ml-1">
+                                        📍 <span className="underline decoration-gray-200">{currentAddress}</span> 부근
+                                    </p>
+                                )}
                             </div>
 
                             <div>
-                                <label className="block text-xs font-bold text-gray-700 mb-1.5">장소 카테고리</label>
-                                <select
-                                    value={newCategory}
-                                    onChange={(e) => setNewCategory(e.target.value)}
-                                    className={`w-full text-sm p-3 border border-gray-200 rounded-xl focus:ring-2 outline-none bg-white transition-colors ${createMode === 'request' ? 'focus:ring-[#5D4037]/20 focus:border-[#5D4037]' : 'focus:ring-[#2E7D32]/20 focus:border-[#2E7D32]'}`}
+                                <label className="block text-xs font-bold text-gray-700 mb-2">장소 카테고리</label>
+                                <div 
+                                    ref={scrollRef}
+                                    onMouseDown={onDragStart}
+                                    onMouseLeave={onDragEnd}
+                                    onMouseUp={onDragEnd}
+                                    onMouseMove={onDragMove}
+                                    className={`flex overflow-x-auto pb-4 -mx-1 px-1 [&::-webkit-scrollbar]:h-[3px] [&::-webkit-scrollbar-thumb]:bg-gray-200 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-track]:bg-transparent space-x-2 select-none ${isDragMap ? 'cursor-grabbing' : 'cursor-grab'}`}
                                 >
-                                    <option value="기타">카테고리 선택 (기타)</option>
-                                    <option value="공원">🌲 공원</option>
-                                    <option value="운동">💪 운동</option>
-                                    <option value="마켓">🛒 마켓</option>
-                                    <option value="기관">🏢 기관</option>
-                                </select>
+                                    {CATEGORIES.map((category) => {
+                                        const Icon = category.icon;
+                                        const isSelected = newCategory === category.id;
+                                        return (
+                                            <button
+                                                key={category.id}
+                                                onClick={() => {
+                                                    // 드래그 중에는 클릭이 발생하지 않도록 하거나 
+                                                    // 클릭 이벤트를 그대로 두어 선택 가능하게 함
+                                                    setNewCategory(category.id);
+                                                }}
+                                                className={`flex items-center space-x-1.5 px-4 py-2.5 rounded-full border text-xs font-bold whitespace-nowrap transition-all duration-200 border-gray-200 flex-shrink-0 ${
+                                                    isSelected 
+                                                        ? (createMode === 'request' 
+                                                            ? 'bg-[#5D4037] text-white border-[#5D4037] shadow-md scale-105' 
+                                                            : 'bg-[#2E7D32] text-white border-[#2E7D32] shadow-md scale-105')
+                                                        : 'bg-white text-gray-600 hover:bg-gray-50'
+                                                }`}
+                                            >
+                                                <Icon size={14} className={isSelected ? 'text-white' : 'text-gray-400'} />
+                                                <span>{category.label}</span>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
                             </div>
 
                             {createMode === "share" && (
