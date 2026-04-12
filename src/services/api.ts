@@ -22,12 +22,19 @@ export interface PlaceData {
     category: string;
 }
 
+export interface AddressResult {
+    fullAddress: string;
+    regionName: string; // 예: 수원시 정자동
+}
+
 /**
  * 네이버 로컬 API를 사용하여 좌표를 주소로 변환 (Reverse Geocoding)
  */
-export async function getAddressFromCoords(lat: number, lng: number): Promise<string> {
+export async function getAddressFromCoords(lat: number, lng: number): Promise<AddressResult> {
+    const fallback: AddressResult = { fullAddress: "주소 정보 없음", regionName: "위치 확인 불가" };
+    
     if (typeof window === 'undefined' || !window.naver || !window.naver.maps || !window.naver.maps.Service) {
-        return "주소 정보를 불러올 수 없습니다.";
+        return { fullAddress: "서비스 로드 중...", regionName: "위치 확인 중" };
     }
 
     return new Promise((resolve) => {
@@ -36,32 +43,45 @@ export async function getAddressFromCoords(lat: number, lng: number): Promise<st
         }, (status: any, response: any) => {
             if (status !== window.naver.maps.Service.Status.OK) {
                 console.error('Reverse Geocoding 실패:', status);
-                resolve("위치 정보를 찾을 수 없음");
+                resolve(fallback);
                 return;
             }
 
             try {
-                // v2 응답 구조에서 주소 텍스트 추출
                 const addrV2 = response.v2.address;
                 const results = response.v2.results;
+                let fullAddress = "";
+                let regionName = "";
 
                 if (addrV2 && (addrV2.roadAddress || addrV2.jibunAddress)) {
-                    resolve(addrV2.roadAddress || addrV2.jibunAddress);
-                } else if (results && results.length > 0) {
-                    const region = results[0].region;
-                    const parts = [
-                        region.area1?.name,
-                        region.area2?.name,
-                        region.area3?.name,
-                        region.area4?.name
-                    ].filter(Boolean);
-                    resolve(parts.join(' ') || "검색된 주소 부근");
-                } else {
-                    resolve("주소 정보 없음");
+                    fullAddress = addrV2.roadAddress || addrV2.jibunAddress;
                 }
+
+                if (results && results.length > 0) {
+                    const region = results[0].region;
+                    // 수원시 정자동 포맷 생성 (area2의 '시' 부분 + area3)
+                    const city = region.area2?.name?.split(' ')[0] || ""; // '수원시'
+                    const dong = region.area3?.name || ""; // '정자동'
+                    regionName = `${city} ${dong}`.trim();
+                    
+                    if (!fullAddress) {
+                        const parts = [
+                            region.area1?.name,
+                            region.area2?.name,
+                            region.area3?.name,
+                            region.area4?.name
+                        ].filter(Boolean);
+                        fullAddress = parts.join(' ');
+                    }
+                }
+
+                resolve({
+                    fullAddress: fullAddress || "주소 정보 없음",
+                    regionName: regionName || "알 수 없는 지역"
+                });
             } catch (err) {
                 console.error('주소 파싱 에러:', err);
-                resolve("주소 변환 중 오류 발생");
+                resolve(fallback);
             }
         });
     });

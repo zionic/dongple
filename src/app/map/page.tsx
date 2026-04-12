@@ -12,6 +12,7 @@ import { Search } from "lucide-react";
 import Script from "next/script";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useUIStore } from "@/lib/store/uiStore";
+import { useLocationStore } from "@/lib/store/locationStore";
 import { motion, AnimatePresence } from "framer-motion";
 
 declare global {
@@ -58,6 +59,15 @@ function MapContent() {
     const searchParams = useSearchParams();
     
     // 모달 관리 상태 (지역 상태 제거)
+    const { 
+        latitude: storeLat, 
+        longitude: storeLng, 
+        regionName: storeRegion,
+        address: storeAddress,
+        setLocation,
+        fetchLocation
+    } = useLocationStore();
+
     const [expandedCardId, setExpandedCardId] = useState<number | null>(null);
     const [searchQuery, setSearchQuery] = useState("");
     const [isSearching, setIsSearching] = useState(false);
@@ -65,7 +75,6 @@ function MapContent() {
     const [isResultOpen, setIsResultOpen] = useState(false);
     const [selectedSearchPlace, setSelectedSearchPlace] = useState<any | null>(null);
     const tempMarkerRef = useRef<any>(null);
-    const [currentAddress, setCurrentAddress] = useState<string>("");
     const [isMapLoading, setIsMapLoading] = useState(true);
     
     // 카테고리 캐러셀 드래그 상태
@@ -195,12 +204,14 @@ function MapContent() {
         } else {
             // Fallback: Geocoding
             const cleanAddress = place.roadAddress || place.address;
-            setCurrentAddress(cleanAddress); // 즉시 주소 반영
             const coords = await getCoordsFromAddress(cleanAddress);
             if (coords && mapRef.current) {
                 const latlng = new window.naver.maps.LatLng(coords.lat, coords.lng);
                 mapRef.current.setCenter(latlng);
                 mapRef.current.setZoom(17);
+                // 검색된 장소의 주소로 위치 정보 업데이트
+                const addrResult = await getAddressFromCoords(coords.lat, coords.lng);
+                setLocation(coords.lat, coords.lng, addrResult.fullAddress, addrResult.regionName);
             }
         }
     };
@@ -240,7 +251,7 @@ function MapContent() {
 
         try {
             const mapOptions = {
-                center: new window.naver.maps.LatLng(37.3015, 126.9930),
+                center: new window.naver.maps.LatLng(storeLat, storeLng),
                 zoom: 15,
                 logoControl: false,
                 mapDataControl: false,
@@ -270,10 +281,10 @@ function MapContent() {
             window.naver.maps.Event.addListener(map, 'idle', async () => {
                 setIsMapLoading(false);
                 
-                // 중심점 주소 가져오기
+                // 중심점 주소 가져오기 및 전역 상태 동기화
                 const center = map.getCenter();
-                const addr = await getAddressFromCoords(center.y, center.x);
-                setCurrentAddress(addr);
+                const addrResult = await getAddressFromCoords(center.y, center.x);
+                setLocation(center.y, center.x, addrResult.fullAddress, addrResult.regionName);
             });
 
             // 지도 드래그 시작 시 작업
@@ -317,11 +328,11 @@ function MapContent() {
         if (!mapRef.current) return;
         
         const center = mapRef.current.getCenter();
-        const addr = await getAddressFromCoords(center.y, center.x);
+        const addrResult = await getAddressFromCoords(center.y, center.x);
         
         openGlobalBottomSheet("liveCreate", {
             mode,
-            address: addr,
+            address: addrResult.fullAddress,
             latitude: center.y,
             longitude: center.x
         });
@@ -498,14 +509,14 @@ function MapContent() {
                 >
                     <div className="relative flex flex-col items-center mb-10">
                         {/* 주소 배지 */}
-                        {currentAddress && !isMapLoading && (
+                        {storeAddress && !isMapLoading && (
                             <motion.div 
                                 initial={{ opacity: 0, y: 5 }}
                                 animate={{ opacity: 1, y: 0 }}
                                 className="absolute -top-12 bg-gray-800/90 backdrop-blur-sm text-white text-[10px] px-3 py-1.5 rounded-full shadow-lg whitespace-nowrap flex items-center space-x-1 border border-white/20"
                             >
                                 <MapPin size={10} className="text-green-400" />
-                                <span>{currentAddress}</span>
+                                <span>{storeAddress}</span>
                             </motion.div>
                         )}
                         {/* 실제 핀 모양 */}

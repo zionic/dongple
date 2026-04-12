@@ -25,6 +25,8 @@ const statusOptions = [
     { label: "혼잡", color: "bg-red-100 text-red-700 hover:bg-red-200 border-red-200", badgeColor: "text-red-500" }
 ];
 
+import { useLocationStore } from "@/lib/store/locationStore";
+
 interface LiveStatusCreateFormProps {
     mode?: "request" | "share";
     currentAddress?: string;
@@ -35,11 +37,18 @@ interface LiveStatusCreateFormProps {
 
 export default function LiveStatusCreateForm({ 
     mode = "share", 
-    currentAddress, 
-    latitude, 
-    longitude,
+    currentAddress: propAddress, 
+    latitude: propLat, 
+    longitude: propLng,
     onSuccess 
 }: LiveStatusCreateFormProps) {
+    const { address: storeAddress, latitude: storeLat, longitude: storeLng } = useLocationStore();
+    
+    // Props가 있으면 우선 사용, 없으면 Store 정보 사용
+    const displayAddress = propAddress || storeAddress;
+    const finalLat = propLat || storeLat;
+    const finalLng = propLng || storeLng;
+
     const [newPlaceName, setNewPlaceName] = useState("");
     const [newCategory, setNewCategory] = useState("기타");
     const [selectedStatus, setSelectedStatus] = useState("보통");
@@ -97,8 +106,8 @@ export default function LiveStatusCreateForm({
                 status_color: newBadgeColor,
                 is_request: isRequest,
                 verified_count: 1,
-                latitude,
-                longitude,
+                latitude: finalLat,
+                longitude: finalLng,
                 message: replyText
             });
             
@@ -117,7 +126,7 @@ export default function LiveStatusCreateForm({
             <div>
                 <label className="block text-xs font-bold text-gray-700 mb-1.5 flex items-center justify-between">
                     <span>장소 이름 (필수)</span>
-                    {currentAddress && (
+                    {displayAddress && (
                         <span className="text-[10px] text-[#2E7D32] bg-green-50 px-1.5 py-0.5 rounded flex items-center">
                             <MapPin size={8} className="mr-0.5" /> 현위치 주소 자동입력됨
                         </span>
@@ -130,9 +139,9 @@ export default function LiveStatusCreateForm({
                     onChange={(e) => setNewPlaceName(e.target.value)}
                     className={`w-full text-sm p-3.5 border border-gray-200 rounded-xl focus:ring-2 outline-none transition-colors ${mode === 'request' ? 'focus:ring-[#5D4037]/20 focus:border-[#5D4037]' : 'focus:ring-[#2E7D32]/20 focus:border-[#2E7D32]'}`}
                 />
-                {currentAddress && (
+                {displayAddress && (
                     <p className="text-[10px] text-gray-400 mt-1.5 ml-1">
-                        📍 <span className="underline decoration-gray-200">{currentAddress}</span> 부근
+                        📍 <span className="underline decoration-gray-200">{displayAddress}</span> 부근
                     </p>
                 )}
             </div>
