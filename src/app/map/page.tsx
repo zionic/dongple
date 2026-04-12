@@ -5,7 +5,7 @@ import {
     Home, Trees, Dumbbell, Coffee, ShoppingBag, Store, ParkingCircle, HeartPulse, Building2 
 } from "lucide-react";
 import Link from "next/link";
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, Suspense } from "react";
 import { fetchLiveStatus, postLiveStatus, LiveStatus, subscribeLiveUpdates } from "@/services/statusService";
 import { getAddressFromCoords, getCoordsFromAddress, searchPlaces } from "@/services/api";
 import { Search } from "lucide-react";
@@ -32,7 +32,7 @@ const CATEGORIES = [
     { id: "기관", label: "기관", icon: Building2 },
 ];
 
-export default function MapPage() {
+function MapContent() {
     // 맵 마커 상태 (DB 연동)
     const [markers, setMarkers] = useState<LiveStatus[]>([]);
 
@@ -673,5 +673,20 @@ export default function MapPage() {
             </div>
 
         </div>
+    );
+}
+
+export default function MapPage() {
+    return (
+        <Suspense fallback={
+            <div className="flex items-center justify-center h-screen bg-white">
+                <div className="flex flex-col items-center">
+                    <div className="w-12 h-12 border-4 border-[#2E7D32]/20 border-t-[#2E7D32] rounded-full animate-spin mb-4"></div>
+                    <p className="text-gray-500 font-bold">지도를 불러오는 중...</p>
+                </div>
+            </div>
+        }>
+            <MapContent />
+        </Suspense>
     );
 }
