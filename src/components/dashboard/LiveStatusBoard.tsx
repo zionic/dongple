@@ -3,9 +3,10 @@
 import { useState, useEffect } from "react";
 import { Clock, CheckCircle2, Plus, HelpCircle, AlertCircle, X } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useUIStore } from "@/lib/store/uiStore";
 import { fetchLiveStatus, postLiveStatus, verifyStatus, subscribeLiveUpdates, LiveStatus } from "@/services/statusService";
-import { v4 as uuidv4 } from 'uuid'; // uuid 패키지가 없다면 단순 랜덤 문자열로 대체 가능하지만 여기서는 일단 선언 예시
+import { v4 as uuidv4 } from 'uuid';
 
 interface LiveStatus {
     id: string;
@@ -147,6 +148,12 @@ export default function LiveStatusBoard() {
         return "bg-[#2E7D32]";
     };
 
+    const router = useRouter();
+
+    const handleCreateClick = (mode: "request" | "share") => {
+        router.push(`/map?mode=${mode}`);
+    };
+
     return (
         <section className="space-y-4 sticky top-0 z-40 bg-gray-50/95 backdrop-blur-md pt-2 pb-3 -mx-4 px-4 shadow-sm border-b border-gray-100 transition-all shadow-[#3E2723]/5">
             <div className="flex items-center justify-between">
@@ -162,14 +169,14 @@ export default function LiveStatusBoard() {
                 </div>
                 <div className="flex space-x-2">
                     <button 
-                        onClick={() => openBottomSheet("liveCreate", { mode: "request", onSubmit: (data: any) => handleCreateSubmit({ ...data, mode: "request" }) })}
+                        onClick={() => handleCreateClick("request")}
                         className="text-[10px] text-[#5D4037] border border-[#D7CCC8] bg-[#EFEBE9] px-2.5 py-1.5 rounded-xl flex items-center space-x-1 font-bold hover:bg-[#D7CCC8]/50 transition-colors shadow-sm"
                     >
                         <HelpCircle size={12} />
                         <span>요청</span>
                     </button>
                     <button 
-                        onClick={() => openBottomSheet("liveCreate", { mode: "share", onSubmit: (data: any) => handleCreateSubmit({ ...data, mode: "share" }) })}
+                        onClick={() => handleCreateClick("share")}
                         className="text-[10px] text-white bg-[#2E7D32] px-2.5 py-1.5 rounded-xl flex items-center space-x-1 font-bold hover:bg-[#1B5E20] transition-colors shadow-sm"
                     >
                         <Plus size={12} />
@@ -177,6 +184,7 @@ export default function LiveStatusBoard() {
                     </button>
                 </div>
             </div>
+
 
             {/* 뉴스 티커 (News Ticker) 형태의 단일 롤링 배너 UI */}
             {liveUpdates.length > 0 && (

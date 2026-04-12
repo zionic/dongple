@@ -10,6 +10,8 @@ import { fetchLiveStatus, postLiveStatus, LiveStatus, subscribeLiveUpdates } fro
 import { getAddressFromCoords, getCoordsFromAddress, searchPlaces } from "@/services/api";
 import { Search } from "lucide-react";
 import Script from "next/script";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useUIStore } from "@/lib/store/uiStore";
 import { motion, AnimatePresence } from "framer-motion";
 
 declare global {
@@ -52,14 +54,11 @@ export default function MapPage() {
     // 리스트 카드 상태 (마커 데이터와 동일하게 사용)
     const localCards = markers;
 
-    // 모달 관리 상태
+    const openGlobalBottomSheet = useUIStore((state) => state.openBottomSheet);
+    const searchParams = useSearchParams();
+    
+    // 모달 관리 상태 (지역 상태 제거)
     const [expandedCardId, setExpandedCardId] = useState<number | null>(null);
-    const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-    const [createMode, setCreateMode] = useState<"request" | "share">("share");
-    const [newPlaceName, setNewPlaceName] = useState("");
-    const [newCategory, setNewCategory] = useState("기타");
-    const [selectedStatus, setSelectedStatus] = useState<string>("보통");
-    const [replyText, setReplyText] = useState("");
     const [searchQuery, setSearchQuery] = useState("");
     const [isSearching, setIsSearching] = useState(false);
     const [searchResults, setSearchResults] = useState<any[]>([]);
@@ -251,6 +250,21 @@ export default function MapPage() {
 
             const map = new window.naver.maps.Map(container, mapOptions);
             mapRef.current = map;
+
+            // GPS로 현재 위치 가져오기
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(
+                    (position) => {
+                        const { latitude, longitude } = position.coords;
+                        const currentLatLng = new window.naver.maps.LatLng(latitude, longitude);
+                        map.setCenter(currentLatLng);
+                        map.setZoom(16);
+                    },
+                    (error) => {
+                        console.warn("GPS 정보를 가져올 수 없습니다:", error);
+                    }
+                );
+            }
             
             // 지도 로드 완료 및 이동 완료 이벤트
             window.naver.maps.Event.addListener(map, 'idle', async () => {
@@ -291,21 +305,27 @@ export default function MapPage() {
         }
     }, []);
 
-    // 시트 높이에 따른 지도 패딩 조절
+    // URL 파라미터(mode) 감지하여 생성 바텀 시트 열기
     useEffect(() => {
-        if (mapRef.current && typeof window !== 'undefined') {
-            const pixelPadding = (sheetHeight / 100) * window.innerHeight;
-            mapRef.current.setOptions({
-                padding: { bottom: pixelPadding }
-            });
-            
-            // 패딩 변경 후 중심점 주소 다시 가져오기
-            const center = mapRef.current.getCenter();
-            getAddressFromCoords(center.y, center.x).then(addr => {
-                setCurrentAddress(addr);
-            });
+        const mode = searchParams.get('mode');
+        if (mode === 'share' || mode === 'request') {
+            handleOpenCreate(mode as "share" | "request");
         }
-    }, [sheetHeight]);
+    }, [searchParams]);
+
+    const handleOpenCreate = async (mode: "share" | "request") => {
+        if (!mapRef.current) return;
+        
+        const center = mapRef.current.getCenter();
+        const addr = await getAddressFromCoords(center.y, center.x);
+        
+        openGlobalBottomSheet("liveCreate", {
+            mode,
+            address: addr,
+            latitude: center.y,
+            longitude: center.x
+        });
+    };
 
     // 클릭 시 검색 결과 닫기 처리
     useEffect(() => {
@@ -377,54 +397,9 @@ export default function MapPage() {
         });
     };
 
-    const statusOptions = [
-        { label: "여유", color: "bg-green-100 text-green-700 hover:bg-green-200 border-green-200", badgeColor: "text-green-500" },
-        { label: "보통", color: "bg-yellow-100 text-yellow-700 hover:bg-yellow-200 border-yellow-200", badgeColor: "text-yellow-500" },
-        { label: "혼잡", color: "bg-red-100 text-red-700 hover:bg-red-200 border-red-200", badgeColor: "text-red-500" }
-    ];
-
-    const handleCreateSubmit = async () => {
-        if (!newPlaceName.trim()) {
-            alert("장소 이름을 입력해주세요.");
-            return;
-        }
-
-        const isRequest = createMode === "request";
-        
-        // Default values for request mode
-        let newStatus = "답변대기";
-        let newBadgeColor = "text-[#5D4037]";
-        
-        if (!isRequest) {
-            const statusOpt = statusOptions.find(opt => opt.label === selectedStatus);
-            if (statusOpt) {
-                newStatus = statusOpt.label;
-                newBadgeColor = statusOpt.badgeColor;
-            }
-        }
-
-        try {
-            await postLiveStatus({
-                place_name: newPlaceName,
-                category: newCategory,
-                status: newStatus,
-                status_color: newBadgeColor,
-                is_request: isRequest,
-                verified_count: 1,
-                latitude: mapRef.current ? mapRef.current.getCenter().y : 37.3015,
-                longitude: mapRef.current ? mapRef.current.getCenter().x : 126.9930,
-            });
-            setIsCreateModalOpen(false);
-            setNewPlaceName("");
-            setNewCategory("기타");
-            setReplyText("");
-            setSelectedStatus("보통");
-        } catch (error) {
-            console.error("지도 등록 실패:", error);
-        }
-    };
 
     return (
+
         <div className="relative w-full h-[100dvh] bg-[#E5E3DF] overflow-hidden flex flex-col max-w-md mx-auto shadow-2xl">
             <Script 
                 src={`https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=${process.env.NEXT_PUBLIC_NAVER_MAP_CLIENT_ID}&submodules=geocoder`}
@@ -590,32 +565,14 @@ export default function MapPage() {
                         <h3 className="font-bold text-[#3E2723] text-lg">주변 현황 <span className="text-[#2E7D32] ml-0.5">{localCards.length}</span>건</h3>
                         <div className="flex space-x-1.5">
                             <button 
-                                onClick={async () => { 
-                                    setCreateMode("request"); 
-                                    setIsCreateModalOpen(true); 
-                                    if (mapRef.current) {
-                                        const center = mapRef.current.getCenter();
-                                        const addr = await getAddressFromCoords(center.y, center.x);
-                                        setCurrentAddress(addr);
-                                        setNewPlaceName(addr);
-                                    }
-                                }}
+                                onClick={() => handleOpenCreate("request")}
                                 className="text-[10px] text-[#5D4037] border border-[#D7CCC8] bg-[#EFEBE9] px-2.5 py-1.5 rounded-lg flex items-center space-x-1 font-bold hover:bg-[#D7CCC8]/50 transition-colors shadow-sm"
                             >
                                 <HelpCircle size={10} />
                                 <span>요청</span>
                             </button>
                             <button 
-                                onClick={async () => { 
-                                    setCreateMode("share"); 
-                                    setIsCreateModalOpen(true); 
-                                    if (mapRef.current) {
-                                        const center = mapRef.current.getCenter();
-                                        const addr = await getAddressFromCoords(center.y, center.x);
-                                        setCurrentAddress(addr);
-                                        setNewPlaceName(addr);
-                                    }
-                                }}
+                                onClick={() => handleOpenCreate("share")}
                                 className="text-[10px] text-white bg-[#2E7D32] px-2.5 py-1.5 rounded-lg flex items-center space-x-1 font-bold hover:bg-[#1B5E20] transition-colors shadow-sm"
                             >
                                 <Plus size={10} />
@@ -696,13 +653,13 @@ export default function MapPage() {
                                     </div>
                                     <div className="mt-5 flex space-x-2">
                                         <button 
-                                            onClick={(e) => { e.stopPropagation(); setCreateMode("request"); setIsCreateModalOpen(true); }}
+                                            onClick={(e) => { e.stopPropagation(); handleOpenCreate("request"); }}
                                             className="flex-1 py-2 text-[11px] bg-white border border-[#D7CCC8] rounded-xl font-bold text-[#5D4037] hover:bg-[#EFEBE9] transition flex items-center justify-center"
                                         >
                                             <HelpCircle size={12} className="mr-1" /> 이웃에게 묻기
                                         </button>
                                         <button 
-                                            onClick={(e) => { e.stopPropagation(); setCreateMode("share"); setIsCreateModalOpen(true); }}
+                                            onClick={(e) => { e.stopPropagation(); handleOpenCreate("share"); }}
                                             className="flex-1 py-2 text-[11px] bg-[#2E7D32] text-white rounded-xl font-bold shadow-sm hover:bg-[#1B5E20] transition flex items-center justify-center"
                                         >
                                             <Plus size={12} className="mr-1" /> 다른 상황 제보
@@ -715,129 +672,6 @@ export default function MapPage() {
                 </div>
             </div>
 
-            {/* 새 상황 생성(요청/공유) 모달 - 지도 위에서 팝업 */}
-            {isCreateModalOpen && (
-                <div className="absolute inset-0 z-50 flex items-end justify-center sm:items-center bg-black/40 backdrop-blur-sm p-4">
-                    <div className="bg-white rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl animate-in slide-in-from-bottom sm:slide-in-from-bottom-0 sm:zoom-in-95 duration-200 mb-4 sm:mb-0">
-                        {/* Header */}
-                        <div className="flex items-center justify-between p-4 border-b border-gray-100 bg-gray-50/50">
-                            <h3 className="font-bold text-[#3E2723] flex items-center">
-                                {createMode === "request" ? (
-                                    <><HelpCircle size={18} className="text-[#5D4037] mr-2" /> 동네 상황 요청하기</>
-                                ) : (
-                                    <><Plus size={18} className="text-[#2E7D32] mr-2" /> 동네 상황 공유하기</>
-                                )}
-                            </h3>
-                            <button 
-                                onClick={() => setIsCreateModalOpen(false)}
-                                className="text-gray-400 hover:text-gray-600 p-1 rounded-full hover:bg-gray-100 transition-colors"
-                            >
-                                <X size={20} />
-                            </button>
-                        </div>
-                        
-                        {/* Body */}
-                        <div className="p-5 space-y-4">
-                            <div>
-                                <label className="block text-xs font-bold text-gray-700 mb-1.5 flex items-center justify-between">
-                                    <span>장소 이름 (필수)</span>
-                                    {currentAddress && (
-                                        <span className="text-[10px] text-[#2E7D32] bg-green-50 px-1.5 py-0.5 rounded flex items-center">
-                                            <MapPin size={8} className="mr-0.5" /> 현위치 주소 자동입력됨
-                                        </span>
-                                    )}
-                                </label>
-                                <input
-                                    type="text"
-                                    placeholder="어느 장소인가요?"
-                                    value={newPlaceName}
-                                    onChange={(e) => setNewPlaceName(e.target.value)}
-                                    className={`w-full text-sm p-3 border border-gray-200 rounded-xl focus:ring-2 outline-none transition-colors ${createMode === 'request' ? 'focus:ring-[#5D4037]/20 focus:border-[#5D4037]' : 'focus:ring-[#2E7D32]/20 focus:border-[#2E7D32]'}`}
-                                />
-                                {currentAddress && (
-                                    <p className="text-[10px] text-gray-400 mt-1.5 ml-1">
-                                        📍 <span className="underline decoration-gray-200">{currentAddress}</span> 부근
-                                    </p>
-                                )}
-                            </div>
-
-                            <div>
-                                <label className="block text-xs font-bold text-gray-700 mb-2">장소 카테고리</label>
-                                <div 
-                                    ref={scrollRef}
-                                    onMouseDown={onDragStart}
-                                    onMouseLeave={onDragEnd}
-                                    onMouseUp={onDragEnd}
-                                    onMouseMove={onDragMove}
-                                    className={`flex overflow-x-auto pb-4 -mx-1 px-1 [&::-webkit-scrollbar]:h-[3px] [&::-webkit-scrollbar-thumb]:bg-gray-200 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-track]:bg-transparent space-x-2 select-none ${isDragMap ? 'cursor-grabbing' : 'cursor-grab'}`}
-                                >
-                                    {CATEGORIES.map((category) => {
-                                        const Icon = category.icon;
-                                        const isSelected = newCategory === category.id;
-                                        return (
-                                            <button
-                                                key={category.id}
-                                                onClick={() => {
-                                                    // 드래그 중에는 클릭이 발생하지 않도록 하거나 
-                                                    // 클릭 이벤트를 그대로 두어 선택 가능하게 함
-                                                    setNewCategory(category.id);
-                                                }}
-                                                className={`flex items-center space-x-1.5 px-4 py-2.5 rounded-full border text-xs font-bold whitespace-nowrap transition-all duration-200 border-gray-200 flex-shrink-0 ${
-                                                    isSelected 
-                                                        ? (createMode === 'request' 
-                                                            ? 'bg-[#5D4037] text-white border-[#5D4037] shadow-md scale-105' 
-                                                            : 'bg-[#2E7D32] text-white border-[#2E7D32] shadow-md scale-105')
-                                                        : 'bg-white text-gray-600 hover:bg-gray-50'
-                                                }`}
-                                            >
-                                                <Icon size={14} className={isSelected ? 'text-white' : 'text-gray-400'} />
-                                                <span>{category.label}</span>
-                                            </button>
-                                        );
-                                    })}
-                                </div>
-                            </div>
-
-                            {createMode === "share" && (
-                                <div>
-                                    <label className="block text-xs font-bold text-gray-700 mb-2">현재 현장 상태 (필수)</label>
-                                    <div className="flex space-x-2">
-                                        {statusOptions.map((option) => (
-                                            <button
-                                                key={option.label}
-                                                onClick={() => setSelectedStatus(option.label)}
-                                                className={`flex-1 py-2 text-sm font-bold rounded-xl border transition-all ${selectedStatus === option.label
-                                                    ? `${option.color} ring-2 ring-offset-1 ${option.label === '여유' ? 'ring-green-300' : option.label === '보통' ? 'ring-yellow-300' : 'ring-red-300'}`
-                                                    : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'
-                                                    }`}
-                                            >
-                                                {option.label}
-                                            </button>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
-
-                            <div>
-                                <label className="block text-xs font-bold text-gray-700 mb-1.5">상세 코멘트 (선택)</label>
-                                <textarea
-                                    className={`w-full text-sm p-3 border border-gray-200 rounded-xl focus:ring-2 outline-none min-h-[80px] resize-none transition-colors ${createMode === 'request' ? 'focus:ring-[#5D4037]/20 focus:border-[#5D4037]' : 'focus:ring-[#2E7D32]/20 focus:border-[#2E7D32]'}`}
-                                    placeholder="상세 내용을 적어주세요."
-                                    value={replyText}
-                                    onChange={(e) => setReplyText(e.target.value)}
-                                />
-                            </div>
-
-                            <button
-                                onClick={handleCreateSubmit}
-                                className={`w-full mt-2 py-3.5 text-white text-sm font-bold rounded-xl transition-colors shadow-md flex justify-center items-center ${createMode === 'request' ? 'bg-[#5D4037] hover:bg-[#4E342E]' : 'bg-[#2E7D32] hover:bg-[#1B5E20]'}`}
-                            >
-                                {createMode === "request" ? "질문 등록" : "상황 공유"}
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
         </div>
     );
 }

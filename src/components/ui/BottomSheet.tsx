@@ -3,7 +3,10 @@
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useUIStore } from "@/lib/store/uiStore";
-import { X, CheckCircle2 } from "lucide-react";
+import { X, CheckCircle2, ChevronRight, Camera, ShieldCheck, User as UserIcon } from "lucide-react";
+import LiveStatusCreateForm from "@/components/forms/LiveStatusCreateForm";
+import { createPost } from "@/services/postService";
+import { useAuthStore } from "@/lib/store/authStore";
 
 export default function BottomSheet() {
   const { isBottomSheetOpen, bottomSheetContent, bottomSheetData, closeBottomSheet } = useUIStore();
@@ -93,41 +96,172 @@ export default function BottomSheet() {
 }
 
 function WriteForm() {
-    return (
-        <div className="space-y-4">
-            <p className="text-sm font-medium text-gray-500 mb-2">어떤 소식을 이웃과 나누고 싶으신가요?</p>
-            <div className="flex space-x-2 pb-2">
-                <button className="px-3.5 py-1.5 text-[11px] font-bold border border-[#2E7D32] text-[#2E7D32] bg-green-50 rounded-xl">동네질문</button>
-                <button className="px-3.5 py-1.5 text-[11px] font-bold border border-gray-200 text-gray-500 bg-white rounded-xl">동네가게</button>
-                <button className="px-3.5 py-1.5 text-[11px] font-bold border border-gray-200 text-gray-500 bg-white rounded-xl">같이해요</button>
+    const { closeBottomSheet } = useUIStore();
+    const { userId, publicId, profile, isAnonymous, toggleAnonymous, initAuth } = useAuthStore();
+    const [title, setTitle] = useState("");
+    const [content, setContent] = useState("");
+    const [postType, setPostType] = useState("동네질문");
+    const [category, setCategory] = useState("기타");
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isSuccess, setIsSuccess] = useState(false);
+
+    useEffect(() => {
+        if (!userId) initAuth();
+    }, []);
+
+    const postTypes = ["동네질문", "동네가게", "같이해요", "정보공유"];
+    const categories = [
+        "날씨/교통", "부동산/이사", "학교/교육", "공공기관", "병원/약국", 
+        "경로당/공원", "카페/만화방", "독서실/학습", "놀이터", "기타"
+    ];
+
+    const handleSubmit = async () => {
+        if (!content.trim()) {
+            alert("내용을 입력해주세요.");
+            return;
+        }
+
+        setIsSubmitting(true);
+        try {
+            await createPost({
+                title: title.trim() || null,
+                content,
+                post_type: postType,
+                category,
+                user_id: userId,
+                public_id: publicId,
+                is_anonymous: isAnonymous,
+                score: postType === "정보공유" ? 0.6 : 0.5 // 지침서 기준 초기 점수
+            });
+            setIsSuccess(true);
+            setTimeout(() => {
+                closeBottomSheet();
+            }, 1500);
+        } catch (error) {
+            console.error("등록 실패:", error);
+            alert("알 수 없는 오류로 등록에 실패했습니다.");
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
+    if (isSuccess) {
+        return (
+            <div className="flex flex-col items-center justify-center py-12 space-y-4">
+                <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center animate-bounce">
+                    <CheckCircle2 size={32} className="text-[#2E7D32]" />
+                </div>
+                <p className="text-lg font-bold text-[#3E2723]">동네 소식이 등록되었습니다!</p>
+                <p className="text-sm text-gray-400">이웃들이 곧 소식을 확인하게 될 거예요.</p>
             </div>
-            <div className="pt-2">
+        );
+    }
+
+    return (
+        <div className="flex flex-col h-full bg-white">
+            <div className="space-y-4 mb-4">
+                <div>
+                    <label className="text-[11px] font-black text-gray-400 uppercase tracking-wider ml-1 mb-2 block">글 종류</label>
+                    <div className="flex overflow-x-auto pb-1 space-x-2 no-scrollbar">
+                        {postTypes.map((type) => (
+                            <button
+                                key={type}
+                                onClick={() => setPostType(type)}
+                                className={`px-4 py-2 text-[12px] font-bold rounded-xl border transition-all whitespace-nowrap ${
+                                    postType === type 
+                                    ? "border-[#3E2723] bg-[#3E2723] text-white shadow-md font-black" 
+                                    : "border-gray-100 text-gray-500 bg-gray-50 hover:bg-gray-100"
+                                }`}
+                            >
+                                {type}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+
+                <div>
+                    <label className="text-[11px] font-black text-[#2E7D32] uppercase tracking-wider ml-1 mb-2 block">관심 주제</label>
+                    <div className="flex overflow-x-auto pb-1 space-x-2 no-scrollbar">
+                        {categories.map((cat) => (
+                            <button
+                                key={cat}
+                                onClick={() => setCategory(cat)}
+                                className={`px-4 py-2 text-[12px] font-bold rounded-xl border transition-all whitespace-nowrap ${
+                                    category === cat 
+                                    ? "border-[#2E7D32] bg-[#2E7D32]/10 text-[#2E7D32] font-black" 
+                                    : "border-gray-100 text-gray-400 bg-white hover:border-gray-200"
+                                }`}
+                            >
+                                {cat}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            </div>
+
+            <div className="space-y-1">
                 <input
                     type="text"
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
                     placeholder="제목 (선택사항)"
-                    className="w-full text-[15px] font-bold py-3 border-b border-gray-100 outline-none placeholder:text-gray-300 text-[#3E2723]"
+                    className="w-full text-[16px] font-bold py-3 border-b border-gray-100 outline-none placeholder:text-gray-300 text-[#3E2723]"
                 />
-            </div>
-            <div>
                 <textarea
-                    placeholder="정자동 이웃들과 나눌 소식을 편하게 적어보세요."
-                    className="w-full text-sm py-4 min-h-[160px] resize-none outline-none placeholder:text-gray-400 leading-relaxed text-gray-800"
+                    value={content}
+                    onChange={(e) => setContent(e.target.value)}
+                    placeholder="우리 동네 이웃들과 나눌 소식을 적어보세요."
+                    className="w-full text-[15px] py-4 min-h-[160px] resize-none outline-none placeholder:text-gray-300 leading-relaxed text-gray-800"
                 />
             </div>
-            <div className="flex items-center justify-between border-t border-gray-100 pt-5 mt-2">
-                <button className="px-4 py-2 bg-gray-50 border border-gray-200 text-gray-500 text-[11px] font-bold rounded-xl space-x-1 flex items-center hover:bg-gray-100 transition-colors">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>
-                    <span>사진 추가</span>
-                </button>
+
+            {/* 작성자 옵션 레이어 */}
+            <div className="bg-gray-50/80 rounded-2xl p-4 my-2 border border-gray-100/50 flex items-center justify-between">
+                <div className="flex items-center space-x-3">
+                    <div className={`p-2 rounded-xl ${isAnonymous ? 'bg-indigo-100 text-indigo-600' : 'bg-[#2E7D32]/10 text-[#2E7D32]'}`}>
+                        {isAnonymous ? <ShieldCheck size={20} /> : <UserIcon size={20} />}
+                    </div>
+                    <div>
+                        <p className="text-[13px] font-black text-[#3E2723]">
+                            {isAnonymous ? `익명 (${publicId})` : (profile?.nickname || "동네이웃")}
+                        </p>
+                        <p className="text-[11px] text-gray-400">활동 식별 방식 선택</p>
+                    </div>
+                </div>
                 <button 
-                  className="px-6 py-2.5 text-sm font-bold text-white bg-[#2E7D32] rounded-xl hover:bg-[#1B5E20] transition-colors shadow-sm"
-                  onClick={() => alert("글 등록 완료!")}
+                    onClick={toggleAnonymous}
+                    className={`px-3 py-1.5 rounded-lg text-[11px] font-black transition-all ${
+                        isAnonymous 
+                        ? "bg-gray-200 text-gray-600 hover:bg-gray-300" 
+                        : "bg-[#2E7D32] text-white hover:bg-[#1B5E20]"
+                    }`}
                 >
-                    동플에 등록
+                    {isAnonymous ? "닉네임으로 전환" : "익명으로 전환"}
                 </button>
+            </div>
+
+            <div className="flex items-center justify-between border-t border-gray-50 pt-5 mt-auto pb-2">
+                <button className="p-2.5 bg-gray-50 border border-gray-200 text-gray-500 rounded-xl flex items-center hover:bg-gray-100 transition-all">
+                    <Camera size={20} />
+                </button>
+                
+                <div className="flex items-center space-x-3">
+                    <span className="text-[11px] text-gray-400 font-medium">실명(해시) 기반 활동</span>
+                    <button 
+                        disabled={isSubmitting || !content.trim()}
+                        onClick={handleSubmit}
+                        className={`px-7 py-3 text-sm font-black text-white rounded-2xl transition-all shadow-lg ${
+                            isSubmitting || !content.trim()
+                            ? "bg-gray-200 shadow-none cursor-not-allowed"
+                            : "bg-[#2E7D32] hover:bg-[#1B5E20] active:scale-95"
+                        }`}
+                    >
+                        {isSubmitting ? "등록 중..." : "동플에 등록"}
+                    </button>
+                </div>
             </div>
         </div>
-    )
+    );
 }
 
 function PostDetailView() {
@@ -177,100 +311,17 @@ function LiveCreateForm() {
     const { bottomSheetData, closeBottomSheet } = useUIStore();
     const mode = bottomSheetData?.mode || "share";
     
-    const [newPlaceName, setNewPlaceName] = useState("");
-    const [newCategory, setNewCategory] = useState("기타");
-    const [selectedStatus, setSelectedStatus] = useState("보통");
-    const [replyText, setReplyText] = useState("");
-
-    const statusOptions = [
-        { label: "여유", color: "bg-green-100 text-green-700 hover:bg-green-200 border-green-200", badgeColor: "text-green-500" },
-        { label: "보통", color: "bg-yellow-100 text-yellow-700 hover:bg-yellow-200 border-yellow-200", badgeColor: "text-yellow-500" },
-        { label: "혼잡", color: "bg-red-100 text-red-700 hover:bg-red-200 border-red-200", badgeColor: "text-red-500" }
-    ];
-
-    const handleSubmit = () => {
-        if (!newPlaceName.trim()) {
-            alert("장소 이름을 입력해주세요.");
-            return;
-        }
-        if (bottomSheetData?.onSubmit) {
-            bottomSheetData.onSubmit({
-                newPlaceName,
-                newCategory,
-                selectedStatus,
-                replyText
-            });
-        }
-        closeBottomSheet();
-    };
-
     return (
-        <div className="space-y-5">
-            <div>
-                <label className="block text-[13px] font-bold text-gray-700 mb-1.5">장소 이름 (필수)</label>
-                <input
-                    type="text"
-                    placeholder="어느 장소인가요? (예: 정자시장 앞)"
-                    value={newPlaceName}
-                    onChange={(e) => setNewPlaceName(e.target.value)}
-                    className={`w-full text-[14px] p-3.5 border border-gray-200 rounded-xl focus:ring-2 outline-none transition-colors ${mode === 'request' ? 'focus:ring-[#5D4037]/20 focus:border-[#5D4037]' : 'focus:ring-[#2E7D32]/20 focus:border-[#2E7D32]'}`}
-                />
-            </div>
-            <div>
-                <label className="block text-[13px] font-bold text-gray-700 mb-1.5">장소 카테고리</label>
-                <select
-                    value={newCategory}
-                    onChange={(e) => setNewCategory(e.target.value)}
-                    className={`w-full text-[14px] p-3.5 border border-gray-200 rounded-xl focus:ring-2 outline-none bg-white transition-colors ${mode === 'request' ? 'focus:ring-[#5D4037]/20 focus:border-[#5D4037]' : 'focus:ring-[#2E7D32]/20 focus:border-[#2E7D32]'}`}
-                >
-                    <option value="기타">카테고리 선택 (기타)</option>
-                    <option value="공원">🌲 공원</option>
-                    <option value="운동">💪 운동</option>
-                    <option value="마켓">🛒 마켓</option>
-                    <option value="교통">🚗 교통</option>
-                    <option value="관공서">🏢 관공서</option>
-                    <option value="맛집">🍜 맛집</option>
-                </select>
-            </div>
-            {mode === "share" && (
-                <div>
-                    <label className="block text-[13px] font-bold text-gray-700 mb-2">현재 현장 상태 (필수)</label>
-                    <div className="flex space-x-2">
-                        {statusOptions.map((option) => (
-                            <button
-                                key={option.label}
-                                onClick={() => setSelectedStatus(option.label)}
-                                className={`flex-1 py-2.5 text-[14px] font-bold rounded-xl border transition-all ${selectedStatus === option.label
-                                    ? `${option.color} ring-2 ring-offset-1 ${option.label === '여유' ? 'ring-green-300' : option.label === '보통' ? 'ring-yellow-300' : 'ring-red-300'}`
-                                    : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'
-                                    }`}
-                            >
-                                {option.label}
-                            </button>
-                        ))}
-                    </div>
-                </div>
-            )}
-            <div>
-                <label className="block text-[13px] font-bold text-gray-700 mb-1.5">
-                    {mode === "request" ? "추가 질문 코멘트 (선택)" : "상세 공유 코멘트 (선택)"}
-                </label>
-                <textarea
-                    className={`w-full text-[14px] p-3.5 border border-gray-200 rounded-xl focus:ring-2 outline-none min-h-[100px] resize-none transition-colors ${mode === 'request' ? 'focus:ring-[#5D4037]/20 focus:border-[#5D4037]' : 'focus:ring-[#2E7D32]/20 focus:border-[#2E7D32]'}`}
-                    placeholder={mode === "request" ? "궁금한 내용을 자유롭게 적어보세요." : "이웃들에게 도움이 될 만한 상세 상황을 적어보세요."}
-                    value={replyText}
-                    onChange={(e) => setReplyText(e.target.value)}
-                />
-            </div>
-            <button
-                onClick={handleSubmit}
-                className={`w-full py-4 text-white text-[15px] font-bold rounded-xl transition-colors mt-2 shadow-md ${mode === 'request' ? 'bg-[#5D4037] hover:bg-[#4E342E]' : 'bg-[#2E7D32] hover:bg-[#1B5E20]'}`}
-            >
-                {mode === "request" ? "이웃에게 질문 등록하기" : "이웃에게 상황 공유하기"}
-            </button>
-        </div>
+        <LiveStatusCreateForm 
+            mode={mode}
+            currentAddress={bottomSheetData?.address}
+            latitude={bottomSheetData?.latitude}
+            longitude={bottomSheetData?.longitude}
+            onSuccess={closeBottomSheet}
+        />
     );
 }
+
 
 function LiveReplyForm() {
     const { bottomSheetData, closeBottomSheet } = useUIStore();

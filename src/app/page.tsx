@@ -4,11 +4,15 @@ import { useState } from "react";
 import {
   CloudSun, Building2, Store, School,
   HeartPulse, Landmark, Coffee, Gamepad2,
-  Trees, BookOpen, Settings, TrendingUp
+  Trees, BookOpen, Settings, TrendingUp,
+  Activity, ShieldCheck, User as UserIcon, Star
 } from "lucide-react";
 import QuestionSummary from "@/components/dashboard/QuestionSummary";
 import LiveStatusBoard from "@/components/dashboard/LiveStatusBoard";
 import { useUIStore } from "@/lib/store/uiStore";
+import { fetchPosts, subscribePosts, Post } from "@/services/postService";
+import { useEffect } from "react";
+import { useAuthStore } from "@/lib/store/authStore";
 
 type UserMode = "popular" | "interest";
 
@@ -16,8 +20,26 @@ export default function Home() {
   const [mode, setMode] = useState<UserMode>("popular");
   const [sortBy, setSortBy] = useState<"popular" | "recent">("popular");
   const openBottomSheet = useUIStore((state) => state.openBottomSheet);
-  // 예시: 사용자가 등록한 관심 키워드 2개
   const [myInterests] = useState(["부동산/이사", "병원/약국"]);
+  const [posts, setPosts] = useState<Post[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  const loadPosts = async () => {
+    try {
+      const data = await fetchPosts(5);
+      setPosts(data);
+    } catch (error) {
+      console.error("Failed to load posts:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadPosts();
+    const sub = subscribePosts(loadPosts);
+    return () => { sub.unsubscribe(); };
+  }, []);
 
   // 전체 카테고리 정의
   const allCategories = [
@@ -135,23 +157,70 @@ export default function Home() {
             </button>
           </div>
         </div>
-        {[1, 2, 3].map((id) => (
-          <div 
-            key={id} 
-            className="border-b border-gray-100 pb-4 cursor-pointer hover:bg-gray-50/50 transition-colors -mx-4 px-4 pt-2"
-            onClick={() => openBottomSheet("postDetail", { title: "수원 정자동 근처에 조용히 공부하기 좋은 독서실 추천해주실 분 계신가요?" })}
-          >
-            <div className="flex justify-between items-start mb-2">
-              <span className="bg-gray-100 px-2 py-1 rounded text-[10px] text-gray-600 font-bold">동네질문</span>
-              <span className="text-[11px] text-gray-400">2분 전</span>
-            </div>
-            <p className="text-[14px] font-bold mb-2 text-[#3E2723]">수원 정자동 근처에 조용히 공부하기 좋은 독서실 추천해주실 분 계신가요?</p>
-            <div className="flex items-center space-x-3 text-[11px] text-gray-400 font-medium">
-              <span>공감 5</span>
-              <span>댓글 12</span>
-            </div>
+
+        {isLoading ? (
+          <div className="space-y-4">
+            {[1, 2, 3].map(i => (
+              <div key={i} className="h-24 bg-gray-50 rounded-2xl animate-pulse" />
+            ))}
           </div>
-        ))}
+        ) : posts.length > 0 ? (
+          posts.map((post) => {
+            // 스코어에 따른 신뢰 등급 계산
+            const getTrustLevel = (score: number) => {
+              if (score >= 0.8) return { label: "신용 높음", color: "text-blue-600 bg-blue-50", icon: <ShieldCheck size={10}/> };
+              if (score >= 0.5) return { label: "보통", color: "text-green-600 bg-green-50", icon: <Star size={10}/> };
+              return { label: "확인 필요", color: "text-orange-600 bg-orange-50", icon: <Activity size={10}/> };
+            };
+            const trust = getTrustLevel(post.score || 0.5);
+
+            return (
+              <div 
+                key={post.id} 
+                className="border-b border-gray-100 pb-4 cursor-pointer hover:bg-gray-50/50 transition-colors -mx-4 px-4 pt-2"
+                onClick={() => openBottomSheet("postDetail", { title: post.title || post.content.substring(0, 30) + "..." })}
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center space-x-2">
+                    <div className={`flex items-center px-1.5 py-0.5 rounded text-[9px] font-black ${trust.color}`}>
+                      {trust.icon}
+                      <span className="ml-0.5">{trust.label}</span>
+                    </div>
+                    <span className="text-[10px] text-gray-400 font-bold flex items-center">
+                      {post.is_anonymous ? <ShieldCheck size={10} className="mr-0.5 text-indigo-400"/> : <UserIcon size={10} className="mr-0.5 text-green-500"/>}
+                      {post.is_anonymous ? post.public_id : (post.user_id ? "동네이웃" : "시스템")}
+                    </span>
+                  </div>
+                  <span className="text-[10px] text-gray-400 font-medium">
+                    {new Date(post.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </span>
+                </div>
+
+                <div className="flex justify-between items-start mb-2">
+                  <div className="flex space-x-1.5">
+                    <span className="bg-[#3E2723] px-2 py-0.5 rounded text-[9px] text-white font-black uppercase tracking-tighter ring-1 ring-[#3E2723]/10">
+                      {post.post_type}
+                    </span>
+                    <span className="bg-[#2E7D32]/5 px-2 py-0.5 rounded text-[9px] text-[#2E7D32] font-black ring-1 ring-[#2E7D32]/20">
+                      {post.category}
+                    </span>
+                  </div>
+                </div>
+                <p className="text-[14px] font-bold mb-2 text-[#3E2723] line-clamp-2 leading-snug">
+                  {post.title || post.content}
+                </p>
+                <div className="flex items-center space-x-3 text-[10px] text-gray-400 font-bold">
+                  <span className="flex items-center"><TrendingUp size={10} className="mr-0.5 text-gray-300"/> 공감 {post.likes_count}</span>
+                  <span>댓글 {post.comments_count}</span>
+                </div>
+              </div>
+            );
+          })
+        ) : (
+          <div className="py-12 text-center border-2 border-dashed border-gray-50 rounded-3xl">
+            <p className="text-sm text-gray-400">등록된 동네 소식이 없습니다.</p>
+          </div>
+        )}
       </section>
     </div>
   );

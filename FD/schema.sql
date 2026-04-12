@@ -1,0 +1,67 @@
+-- 동플(Dongple) 통합 데이터베이스 스키마 정의
+-- Supabase SQL Editor에서 실행해주시고, 이미 존재하는 테이블의 경우 필요한 컬럼만 ALTER TABLE로 추가해주세요.
+
+-- 1. 실시간 동네 상황 테이블
+CREATE TABLE IF NOT EXISTS public.live_status (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    place_name TEXT NOT NULL,
+    category TEXT NOT NULL,
+    status TEXT NOT NULL, -- 여유, 보통, 혼잡
+    status_color TEXT,
+    is_request BOOLEAN DEFAULT FALSE,
+    verified_count INTEGER DEFAULT 0,
+    latitude DOUBLE PRECISION,
+    longitude DOUBLE PRECISION,
+    message TEXT, -- 상세 메시지
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    expires_at TIMESTAMPTZ NOT NULL DEFAULT (now() + interval '2 hours')
+);
+
+-- 2. 상황 인증 내역 테이블
+CREATE TABLE IF NOT EXISTS public.status_verifications (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    status_id UUID REFERENCES public.live_status(id) ON DELETE CASCADE,
+    user_id TEXT NOT NULL, -- 또는 UUID (auth.users 가입 시)
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 3. 동네 소식 (게시글) 테이블
+CREATE TABLE IF NOT EXISTS public.posts (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    title TEXT,
+    content TEXT NOT NULL,
+    post_type TEXT NOT NULL DEFAULT '정보공유', -- 동네질문, 동네가게, 같이해요, 정보공유
+    category TEXT NOT NULL, -- 날씨/교통, 부동산/이사, 병원/약국 등 주제
+    user_id UUID,
+    public_id TEXT, -- 익명 식별자 (HMAC 기반)
+    is_anonymous BOOLEAN DEFAULT TRUE,
+    score DECIMAL(3, 2) DEFAULT 0.5, -- 신뢰도 점수 (0.0 ~ 1.0)
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    likes_count INTEGER DEFAULT 0,
+    comments_count INTEGER DEFAULT 0
+);
+
+-- 4. RLS(Row Level Security) 설정 및 정책
+ALTER TABLE public.live_status ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.status_verifications ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.posts ENABLE ROW LEVEL SECURITY;
+
+-- 공통 읽기 정책
+CREATE POLICY "모두에게 읽기 허용" ON public.live_status FOR SELECT USING (true);
+CREATE POLICY "모두에게 읽기 허용" ON public.status_verifications FOR SELECT USING (true);
+CREATE POLICY "모두에게 읽기 허용" ON public.posts FOR SELECT USING (true);
+
+-- 공통 쓰기 정책 (테스트/초기 용)
+CREATE POLICY "모두에게 쓰기 허용" ON public.live_status FOR INSERT WITH CHECK (true);
+CREATE POLICY "모두에게 쓰기 허용" ON public.status_verifications FOR INSERT WITH CHECK (true);
+CREATE POLICY "모두에게 쓰기 허용" ON public.posts FOR INSERT WITH CHECK (true);
+
+-- 5. Helper Functions (인증 수 증가 등)
+CREATE OR REPLACE FUNCTION increment_verified_count(status_id UUID)
+RETURNS void AS $$
+BEGIN
+  UPDATE public.live_status
+  SET verified_count = verified_count + 1
+  WHERE id = status_id;
+END;
+$$ LANGUAGE plpgsql;

@@ -10,6 +10,7 @@ export interface LiveStatus {
     verified_count: number;
     latitude?: number;
     longitude?: number;
+    message?: string; // 상세 메시지 추가
     created_at: string;
     expires_at: string;
 }
@@ -32,9 +33,15 @@ export async function fetchLiveStatus() {
  * 실시간 상황 공유하기 (상태 업데이트)
  */
 export async function postLiveStatus(payload: Partial<LiveStatus>) {
+    // expires_at이 없으면 기본적으로 2시간 후로 설정
+    const expiresAt = payload.expires_at || new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString();
+
     const { data, error } = await supabase
         .from("live_status")
-        .insert([payload])
+        .insert([{
+            ...payload,
+            expires_at: expiresAt
+        }])
         .select();
 
     if (error) throw error;
