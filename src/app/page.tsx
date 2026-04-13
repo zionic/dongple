@@ -13,10 +13,14 @@ import { useUIStore } from "@/lib/store/uiStore";
 import { fetchPosts, subscribePosts, Post } from "@/services/postService";
 import { useEffect } from "react";
 import { useAuthStore } from "@/lib/store/authStore";
+import { redirect } from "next/navigation";
 
 type UserMode = "popular" | "interest";
 
 export default function Home() {
+  // 당분간 테스트를 위해 V2로 자동 리다이렉트
+  redirect("/v2");
+
   const [mode, setMode] = useState<UserMode>("popular");
   const [sortBy, setSortBy] = useState<"popular" | "recent">("popular");
   const openBottomSheet = useUIStore((state) => state.openBottomSheet);

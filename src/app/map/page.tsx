@@ -1,19 +1,19 @@
 "use client";
 
 import { 
-    ArrowLeft, MapPin, SlidersHorizontal, HelpCircle, Plus, X, 
+    ArrowLeft, MapPin, SlidersHorizontal, HelpCircle, Plus, X, Search,
     Home, Trees, Dumbbell, Coffee, ShoppingBag, Store, ParkingCircle, HeartPulse, Building2 
 } from "lucide-react";
 import Link from "next/link";
 import { useState, useRef, useEffect, Suspense } from "react";
 import { fetchLiveStatus, postLiveStatus, LiveStatus, subscribeLiveUpdates } from "@/services/statusService";
 import { getAddressFromCoords, getCoordsFromAddress, searchPlaces } from "@/services/api";
-import { Search } from "lucide-react";
 import Script from "next/script";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useUIStore } from "@/lib/store/uiStore";
 import { useLocationStore } from "@/lib/store/locationStore";
 import { motion, AnimatePresence } from "framer-motion";
+import Header from "@/components/layout/Header";
 
 declare global {
   interface Window {
@@ -82,6 +82,31 @@ function MapContent() {
     const [isDragMap, setIsDragMap] = useState(false);
     const [startXDrag, setStartXDrag] = useState(0);
     const [scrollLeftVal, setScrollLeftVal] = useState(0);
+
+    const [isMapMoving, setIsMapMoving] = useState(false);
+    const [isNearbyStatus, setIsNearbyStatus] = useState(false);
+
+    // 거리 계산 함수 (Haversine Formula) - 두 좌표 사이의 미터 거리를 반환
+    const getDistance = (lat1: number, lng1: number, lat2: number, lng2: number) => {
+        const R = 6371e3; // 지구 반지름 (m)
+        const dLat = (lat2 - lat1) * Math.PI / 180;
+        const dLng = (lng2 - lng1) * Math.PI / 180;
+        const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                  Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                  Math.sin(dLng / 2) * Math.sin(dLng / 2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        return R * c;
+    };
+
+    // 주변 마커 존재 여부 확인
+    const checkNearbyStatus = (centerLat: number, centerLng: number) => {
+        const threshold = 50; // 50미터 이내 확인
+        const exists = markers.some(m => {
+            if (!m.latitude || !m.longitude) return false;
+            return getDistance(centerLat, centerLng, m.latitude, m.longitude) < threshold;
+        });
+        setIsNearbyStatus(exists);
+    };
     
     // 바텀 시트 드래그 이벤트 상태
     const [sheetHeight, setSheetHeight] = useState(50);
@@ -134,20 +159,26 @@ function MapContent() {
         }
     }, [markers, expandedCardId, sheetHeight]);
 
-    const handleSearch = async () => {
-        if (!searchQuery.trim()) return;
+    const handleSearch = async (initialQuery?: string) => {
+        const queryToSearch = initialQuery || searchQuery;
+        if (!queryToSearch || !queryToSearch.trim()) return;
+        
         setIsSearching(true);
         setIsResultOpen(false);
         
         try {
-            const poiResults = await searchPlaces(searchQuery);
+            const poiResults = await searchPlaces(queryToSearch);
             setSearchResults(poiResults);
             
             if (poiResults && poiResults.length > 0) {
                 setIsResultOpen(true);
+                // URL 파라미터로 명시적 검색이 들어온 경우 첫 번째 결과로 즉시 이동
+                if (initialQuery) {
+                    handleSelectPlace(poiResults[0]);
+                }
             } else {
                 // POI 결과가 없으면 지오코딩 시도
-                const coords = await getCoordsFromAddress(searchQuery);
+                const coords = await getCoordsFromAddress(queryToSearch);
                 if (coords && mapRef.current) {
                     const moveLatLng = new window.naver.maps.LatLng(coords.lat, coords.lng);
                     mapRef.current.setCenter(moveLatLng);
@@ -163,6 +194,15 @@ function MapContent() {
             setIsSearching(false);
         }
     };
+
+    // URL 파라미터(q) 감지하여 자동 검색 실행
+    useEffect(() => {
+        const q = searchParams.get('q');
+        if (q && !isMapLoading && mapRef.current) {
+            setSearchQuery(q);
+            handleSearch(q);
+        }
+    }, [searchParams, isMapLoading]);
 
     const handleSelectPlace = async (place: any) => {
         setIsResultOpen(false);
@@ -280,15 +320,20 @@ function MapContent() {
             // 지도 로드 완료 및 이동 완료 이벤트
             window.naver.maps.Event.addListener(map, 'idle', async () => {
                 setIsMapLoading(false);
+                setIsMapMoving(false);
                 
                 // 중심점 주소 가져오기 및 전역 상태 동기화
                 const center = map.getCenter();
                 const addrResult = await getAddressFromCoords(center.y, center.x);
                 setLocation(center.y, center.x, addrResult.fullAddress, addrResult.regionName);
+                
+                // 주변 마커 체크
+                checkNearbyStatus(center.y, center.x);
             });
 
             // 지도 드래그 시작 시 작업
             window.naver.maps.Event.addListener(map, 'dragstart', () => {
+                setIsMapMoving(true);
                 setSheetHeight(15); // 시트 내리기
                 setIsResultOpen(false); // 검색창 닫기
             });
@@ -417,51 +462,26 @@ function MapContent() {
                 onLoad={initMap}
                 strategy="afterInteractive"
             />
-            {/* 상단 맵 프로팅 헤더 영역 */}
-            <header className="absolute top-0 left-0 w-full z-20 px-4 h-16 flex items-center justify-between bg-white/70 backdrop-blur-md border-b border-gray-100 shadow-sm">
-                <Link href="/" className="p-2 -ml-2 text-gray-700 hover:text-[#2E7D32] transition-colors rounded-full hover:bg-gray-100">
-                    <ArrowLeft size={24} />
-                </Link>
-                <div className="font-bold text-lg text-[#3E2723] flex items-center">
-                    <MapPin size={18} className="text-[#2E7D32] mr-1.5" />
-                    동네 상황 지도
-                </div>
-                <button className="p-2 -mr-2 text-gray-700 hover:text-[#2E7D32] transition-colors rounded-full hover:bg-gray-100">
-                    <SlidersHorizontal size={22} />
-                </button>
-            </header>
+            
+            <Header 
+                isSearchMode={true}
+                searchValue={searchQuery}
+                onSearchChange={setSearchQuery}
+                onSearch={() => handleSearch()}
+                onClearSearch={() => setSearchQuery("")}
+                showBackButton={true}
+                placeholder="동네 장소나 주소 검색..."
+            />
 
-            {/* 상단 주소 검색창 */}
-            <div className="absolute top-20 left-4 right-4 z-20">
-                <div className="relative group">
-                    <input 
-                        type="text" 
-                        placeholder="동네 장소나 주소 검색..."
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        onKeyDown={async (e) => {
-                            if (e.key === 'Enter' && searchQuery.trim()) {
-                                e.preventDefault();
-                                handleSearch();
-                            }
-                        }}
-                        className="w-full h-12 pl-12 pr-4 bg-white/95 backdrop-blur-md rounded-2xl shadow-lg border border-gray-100 focus:ring-2 focus:ring-[#2E7D32]/20 outline-none text-sm transition-all"
-                    />
-                    <Search 
-                        onClick={() => handleSearch()}
-                        className={`absolute left-4 top-1/2 -translate-y-1/2 cursor-pointer hover:scale-110 active:scale-95 transition-transform ${isSearching ? 'text-[#2E7D32] animate-pulse' : 'text-gray-400 font-bold'}`} 
-                        size={22} 
-                    />
-                </div>
-
-                {/* 검색 결과 리스트 */}
+            {/* 검색 결과 리스트 */}
+            <div className="absolute top-14 left-4 right-4 z-40 pointer-events-none">
                 <AnimatePresence>
                     {isResultOpen && searchResults.length > 0 && (
                         <motion.div 
                             initial={{ opacity: 0, y: -10 }}
                             animate={{ opacity: 1, y: 0 }}
                             exit={{ opacity: 0, y: -10 }}
-                            className="absolute top-[54px] left-0 right-0 bg-white/95 backdrop-blur-md rounded-2xl shadow-xl border border-gray-100 overflow-hidden z-30 max-h-[300px] overflow-y-auto"
+                            className="bg-white/95 backdrop-blur-md rounded-2xl shadow-xl border border-gray-100 overflow-hidden pointer-events-auto max-h-[300px] overflow-y-auto mt-2"
                         >
                             <div className="p-2 space-y-1">
                                 {searchResults.map((place, idx) => (
@@ -504,28 +524,71 @@ function MapContent() {
                 
                 {/* 중앙 고정 핀 (조준점) */}
                 <div 
-                    className={`absolute inset-0 flex items-center justify-center pointer-events-none z-10 ${isDragging ? '' : 'transition-all duration-300'}`}
+                    className="absolute inset-0 flex items-center justify-center pointer-events-none z-10"
                     style={{ paddingBottom: `${sheetHeight}vh` }}
                 >
-                    <div className="relative flex flex-col items-center mb-10">
-                        {/* 주소 배지 */}
+                    <motion.div 
+                        animate={{ 
+                            y: isMapMoving ? -30 : 0,
+                            scale: isMapMoving ? 1.1 : 1
+                        }}
+                        transition={{ type: "spring", stiffness: 300, damping: 20 }}
+                        className="relative flex flex-col items-center mb-10"
+                    >
+                        {/* 주소 배지 & 제보 버튼 */}
                         {storeAddress && !isMapLoading && (
                             <motion.div 
-                                initial={{ opacity: 0, y: 5 }}
+                                initial={{ opacity: 0, y: 10 }}
                                 animate={{ opacity: 1, y: 0 }}
-                                className="absolute -top-12 bg-gray-800/90 backdrop-blur-sm text-white text-[10px] px-3 py-1.5 rounded-full shadow-lg whitespace-nowrap flex items-center space-x-1 border border-white/20"
+                                className="absolute -top-14 bg-gray-800/95 backdrop-blur-md text-white px-3 py-2 rounded-2xl shadow-[0_10px_25px_rgba(0,0,0,0.2)] whitespace-nowrap flex items-center space-x-2 border border-white/20 pointer-events-auto"
                             >
-                                <MapPin size={10} className="text-green-400" />
-                                <span>{storeAddress}</span>
+                                <div className="flex items-center space-x-1 border-r border-white/20 pr-2">
+                                    <MapPin size={12} className="text-green-400" />
+                                    <span className="text-[11px] font-bold max-w-[120px] truncate">{storeAddress}</span>
+                                </div>
+                                
+                                <AnimatePresence mode="wait">
+                                    {!isNearbyStatus && !isMapMoving ? (
+                                        <motion.button
+                                            initial={{ opacity: 0, scale: 0.8 }}
+                                            animate={{ opacity: 1, scale: 1 }}
+                                            exit={{ opacity: 0, scale: 0.8 }}
+                                            onClick={() => handleOpenCreate("share")}
+                                            className="bg-[#2E7D32] hover:bg-[#1B5E20] text-white text-[10px] px-2.5 py-1 rounded-lg flex items-center font-black transition-colors active:scale-95"
+                                        >
+                                            <Plus size={12} className="mr-0.5" />
+                                            여기에 제보
+                                        </motion.button>
+                                    ) : (
+                                        <motion.div 
+                                            initial={{ opacity: 0 }}
+                                            animate={{ opacity: 1 }}
+                                            className="text-[10px] text-gray-300 font-bold px-1"
+                                        >
+                                            {isMapMoving ? "이동 중..." : "등록된 정보 있음"}
+                                        </motion.div>
+                                    )}
+                                </AnimatePresence>
+                                <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-gray-800/95 rotate-45 border-r border-b border-white/10" />
                             </motion.div>
                         )}
+                        
                         {/* 실제 핀 모양 */}
                         <div className="relative">
-                            <MapPin size={36} className="text-[#2E7D32] drop-shadow-lg" />
+                            <MapPin size={42} className="text-[#2E7D32] drop-shadow-[0_10px_10px_rgba(0,0,0,0.3)]" />
                             {/* 핀 끝점 표시 */}
-                            <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-1.5 h-1.5 bg-[#2E7D32] rounded-full border border-white"></div>
+                            <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-[#2E7D32] rounded-full border-2 border-white shadow-lg"></div>
                         </div>
-                    </div>
+
+                        {/* 그림자 (들렸을 때 표시) */}
+                        <motion.div 
+                            animate={{ 
+                                scale: isMapMoving ? 1.5 : 0,
+                                opacity: isMapMoving ? 0.2 : 0
+                            }}
+                            className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-4 h-1.5 bg-black rounded-[100%] blur-[2px]"
+                        />
+                    </motion.div>
                 </div>
 
                 {/* 로딩 표시기 */}

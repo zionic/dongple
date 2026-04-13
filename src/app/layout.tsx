@@ -8,8 +8,8 @@ import GlobalModalProvider from "@/components/ui/GlobalModalProvider";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "동플 - 우리 동네의 순간을 담다",
-  description: "동네 생활 정보 공유 커뮤니티",
+  title: "동플",
+  description: "지금 이순간, 우리동네에 무슨 일이? 우리 동네의 순간을 기록하세요.",
   icons: {
     icon: '/icon.png',
     apple: '/apple-icon.png',

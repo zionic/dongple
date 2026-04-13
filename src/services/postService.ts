@@ -47,16 +47,27 @@ export async function createPost(payload: {
 }) {
     // 지침서 5-B: 사용자 제보 기본 가중치 0.5, 동플 게시물 0.6
     const finalScore = payload.score ?? 0.6; 
+
+    // UUID 유효성 검사 (PostgreSQL uuid 타입 오류 방지)
+    const isValidUuid = (id?: string) => 
+        id ? /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id) : false;
+    
+    // 유효한 UUID가 아니면(예: 'u-...' 형식) null로 설정하여 DB 오류 방지
+    const cleanUserId = isValidUuid(payload.user_id) ? payload.user_id : null;
     
     const { data, error } = await supabase
         .from("posts")
         .insert([{
             ...payload,
+            user_id: cleanUserId,
             score: finalScore
         }])
         .select();
 
-    if (error) throw error;
+    if (error) {
+        console.error("Supabase insert error:", error);
+        throw error;
+    }
     return data[0] as Post;
 }
 

@@ -4,14 +4,23 @@
 
 :root {
   --primary: #795548;
-  /* Brown 계통 */
   --secondary: #2E7D32;
-  /* Green 계통 */
   --accent: #A67C52;
   --background: #FDFBF7;
-  /* 베이지 톤 배경 */
   --foreground: #3E2723;
-  /* 짙은 브라운 텍스트 */
+  --card-bg: #FFFFFF;
+  --nav-bg: rgba(255, 255, 255, 0.85);
+  --border: rgba(62, 39, 35, 0.1);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #1D1616;
+    --foreground: #FDFBF7;
+    --card-bg: #2A1F1F;
+    --nav-bg: rgba(29, 22, 22, 0.95);
+    --border: rgba(255, 255, 255, 0.1);
+  }
 }
 
 body {
