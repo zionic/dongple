@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef, useImperativeHandle, forwardRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, BadgeCheck, CheckCircle2 } from "lucide-react";
+import { X, BadgeCheck, CheckCircle2, ShieldCheck, User as UserIcon, Camera } from "lucide-react";
 
 import LiveStatusCreateForm from "@/components/forms/LiveStatusCreateForm";
 import { createPost } from "@/services/postService";
