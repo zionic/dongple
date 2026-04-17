@@ -41,7 +41,7 @@ export async function fetchPostsByCategory(category: string, limit = 10) {
         .from("posts")
         .select("*")
         .eq("category", category)
-        .eq("is_hidden", false)
+        .gte("score", 0.2) // Hide low reputation posts
         .order("created_at", { ascending: false })
         .limit(limit);
 
@@ -110,7 +110,7 @@ export function subscribePosts(onUpdate: () => void) {
  */
 export async function likePost(postId: string) {
     const { error } = await supabase.rpc('increment_like_count', {
-        post_id: postId
+        p_post_id: postId
     });
 
     if (error) {
@@ -168,8 +168,22 @@ export async function createComment(payload: {
 
     // 댓글 수 증가
     await supabase.rpc('increment_comment_count', {
-        post_id: payload.post_id
+        p_post_id: payload.post_id
     });
 
     return data[0];
+}
+
+/**
+ * 게시글 신고
+ */
+export async function reportPost(postId: string, userId: string, reason: string = "부적절한 정보") {
+    const { data, error } = await supabase.rpc('report_post', {
+        p_post_id: postId,
+        p_user_id: userId,
+        p_reason: reason
+    });
+
+    if (error) throw error;
+    return data as boolean; // 새롭게 신고됨 여부
 }

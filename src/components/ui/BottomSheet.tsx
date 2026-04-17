@@ -5,11 +5,10 @@ import { motion, AnimatePresence } from "framer-motion";
 import { X, BadgeCheck, CheckCircle2, ShieldCheck, User as UserIcon, Camera, AlertTriangle } from "lucide-react";
 import { reportContent, ReportReason } from "@/services/moderationService";
 
-import LiveStatusCreateForm from "@/components/forms/LiveStatusCreateForm";
-import { createPost } from "@/services/postService";
-import { useAuthStore } from "@/lib/store/authStore";
 
-import { createComment } from "@/services/postService";
+import LiveStatusCreateForm from "@/components/forms/LiveStatusCreateForm";
+import { createPost, createComment, fetchComments, likePost, reportPost } from "@/services/postService";
+import { useAuthStore } from "@/lib/store/authStore";
 import { useUIStore } from "@/lib/store/uiStore";
 
 export default function BottomSheet() {
@@ -46,8 +45,8 @@ export default function BottomSheet() {
             is_anonymous: isAnonymous
         });
         setCommentText("");
-        // 댓글 등록 후 강제 리프레시나 상태 업데이트가 필요할 수 있음
-        // PostDetail 내부에서 자동 로드는 아니므로 data 갱신 로직 필요
+        // Dispatch event to refresh PostDetailView
+        window.dispatchEvent(new CustomEvent('comment-added', { detail: { postId: bottomSheetData.id } }));
     } catch (error) {
         console.error("Comment failed:", error);
         alert("댓글 등록에 실패했습니다.");
@@ -358,25 +357,74 @@ const WriteForm = forwardRef<{ submit: () => void }, { onStateChange: (ready: bo
                     {isAnonymous ? "닉네임으로 전환" : "익명으로 전환"}
                 </button>
             </div>
-
-            <div className="flex items-center space-x-4 border-t border-border pt-5 mt-auto pb-2">
-                <button className="p-2.5 bg-nav-bg border border-border text-gray-500 rounded-xl flex items-center hover:bg-gray-100 dark:hover:bg-gray-800 transition-all">
-                    <Camera size={20} />
-                </button>
-                <div className="flex-1">
-                    <p className="text-[11px] text-gray-400 font-medium">실명(해시) 기반 활동 • 이웃 존중 문화</p>
-                </div>
-                {isSubmitting && (
-                    <span className="w-5 h-5 border-2 border-secondary/30 border-t-secondary rounded-full animate-spin"></span>
-                )}
-            </div>
         </div>
     );
 });
 
 function PostDetailView() {
     const { bottomSheetData } = useUIStore();
+    const { userId } = useAuthStore();
     const isOfficial = bottomSheetData?.is_official;
+    const [comments, setComments] = useState<any[]>([]);
+    const [likes, setLikes] = useState(bottomSheetData?.likes_count || 0);
+    const [isLiked, setIsLiked] = useState(false);
+    const [loadingComments, setLoadingComments] = useState(false);
+    const [isReported, setIsReported] = useState(false);
+
+    const loadComments = async () => {
+        if (!bottomSheetData?.id || isOfficial) return;
+        setLoadingComments(true);
+        try {
+            const data = await fetchComments(bottomSheetData.id);
+            setComments(data || []);
+        } catch (error) {
+            console.error("Comments load failed:", error);
+        } finally {
+            setLoadingComments(false);
+        }
+    };
+
+    useEffect(() => {
+        loadComments();
+
+        const handleCommentRefresh = (e: any) => {
+            if (e.detail?.postId === bottomSheetData?.id) {
+                loadComments();
+            }
+        };
+
+        window.addEventListener('comment-added', handleCommentRefresh);
+        return () => window.removeEventListener('comment-added', handleCommentRefresh);
+    }, [bottomSheetData?.id]);
+
+    const handleLike = async (e: React.MouseEvent) => {
+        if (!userId || isOfficial) return;
+        const newIsLiked = !isLiked;
+        setIsLiked(newIsLiked);
+        setLikes(prev => newIsLiked ? prev + 1 : Math.max(0, prev - 1));
+        
+        try {
+            await likePost(bottomSheetData.id);
+        } catch (error) {
+            setIsLiked(!newIsLiked);
+            setLikes(prev => !newIsLiked ? prev + 1 : Math.max(0, prev - 1));
+            console.error("Like failed:", error);
+        }
+    };
+
+    const handleReport = async () => {
+        if (!userId || isReported) return;
+        if (!confirm("이 게시글을 신고하시겠습니까? 동플 클린 가이드에 따라 검토됩니다.")) return;
+
+        setIsReported(true);
+        try {
+            await reportPost(bottomSheetData.id, userId);
+            alert("신고가 접수되었습니다. 신뢰도가 낮은 게시물은 자동으로 숨김 처리됩니다.");
+        } catch (error) {
+            console.error("Report failed:", error);
+            setIsReported(false);
+        }
+    };
 
     return (
         <div className="space-y-4">
@@ -386,22 +434,35 @@ function PostDetailView() {
                     ? "bg-secondary/10 text-secondary border-secondary/20" 
                     : "bg-nav-bg text-gray-500 border-border"
                 }`}>
-                    {isOfficial ? "공식 행사" : "동네질문"}
+                    {isOfficial ? "공식 행사" : (bottomSheetData?.post_type || "동네소식")}
                 </span>
                 <span className="text-xs text-gray-400">{isOfficial ? "TourAPI 4.0" : "조금 전"}</span>
             </div>
             
             <div className="flex items-start justify-between group">
-                <h2 className="text-[19px] font-black text-foreground leading-tight break-words flex-1">
-                    {bottomSheetData?.title || "게시물이 없습니다."}
+                <h2 className="text-[20px] font-black text-foreground leading-tight break-words flex-1">
+                    {bottomSheetData?.title || bottomSheetData?.content?.substring(0, 30)}
                 </h2>
-                {isOfficial && (
-                    <div className="ml-3 shrink-0 flex flex-col items-center">
-                        <div className="w-10 h-10 bg-secondary/10 rounded-full flex items-center justify-center text-secondary">
-                            <BadgeCheck size={24} />
-                        </div>
-                        <span className="text-[9px] font-bold text-secondary mt-1 uppercase">Official</span>
-                    </div>
+                {!isOfficial && (
+                    <button 
+                        onClick={handleLike}
+                        className={`ml-3 flex flex-col items-center px-4 py-2.5 rounded-2xl transition-all border ${
+                            isLiked ? "bg-red-50 text-red-500 border-red-100 shadow-sm" : "bg-nav-bg text-gray-300 border-border hover:border-gray-300"
+                        }`}
+                    >
+                        <Heart size={22} fill={isLiked ? "currentColor" : "none"} />
+                        <span className="text-[10px] font-black mt-1">{likes}</span>
+                    </button>
+                    <button 
+                        onClick={handleReport}
+                        className={`ml-2 flex flex-col items-center px-4 py-2.5 rounded-2xl transition-all border ${
+                            isReported ? "bg-gray-100 text-gray-400 border-gray-200" : "bg-nav-bg text-gray-300 border-border hover:border-gray-300 hover:text-orange-500"
+                        }`}
+                        disabled={isReported}
+                    >
+                        <Flag size={20} fill={isReported ? "currentColor" : "none"} />
+                        <span className="text-[10px] font-black mt-1">{isReported ? "신고됨" : "신고"}</span>
+                    </button>
                 )}
                 {!isOfficial && (
                     <button 
@@ -424,50 +485,62 @@ function PostDetailView() {
             ) : (
                 <div className="flex items-center space-x-2 mt-4 text-[13px] font-medium text-foreground/60">
                     <div className="w-8 h-8 bg-secondary/10 rounded-full shrink-0 flex items-center justify-center">
-                        <span className="text-secondary font-bold text-xs">정</span>
+                        <span className="text-secondary font-bold text-xs">
+                            {(bottomSheetData?.public_id || "정").substring(0, 1)}
+                        </span>
                     </div>
-                    <div className="text-foreground opacity-80">정다운 이웃</div>
+                    <div className="text-foreground opacity-80">
+                        {bottomSheetData?.is_anonymous ? `익명 (${bottomSheetData?.public_id})` : "반가운 이웃"}
+                    </div>
                 </div>
             )}
 
-            <div className={`pt-2 pb-6 text-foreground leading-relaxed text-[15px] ${!isOfficial && "border-b border-border"} min-h-[120px] whitespace-pre-wrap opacity-90 font-medium`}>
-                {bottomSheetData?.content || (isOfficial ? "행사 상세 정보가 준비 중입니다." : `정자동 쪽에 집중이 잘되는 조용한 독서실이 있을까요?
-                
-이번 주말에 시험이 있어서 빡세게 공부하려고 합니다.
-추천해주시면 감사하겠습니다!`)}
+            <div className={`pt-2 pb-6 text-foreground leading-relaxed text-[15px] ${!isOfficial && "border-b border-border"} min-h-[100px] whitespace-pre-wrap opacity-90 font-medium`}>
+                {bottomSheetData?.content || (isOfficial ? "행사 상세 정보가 준비 중입니다." : "내용이 없습니다.")}
             </div>
             
-            {!isOfficial ? (
-                /* 덧글 영역 (일반 포스트) */
+            {!isOfficial && (
                 <div className="pt-2 pb-8">
-                    <h3 className="font-bold text-foreground mb-4 text-sm">댓글 12</h3>
-                    <div className="space-y-5">
-                        <div className="flex space-x-3 items-start">
-                            <div className="w-8 h-8 bg-blue-100 dark:bg-blue-900/30 rounded-full shrink-0 flex items-center justify-center">
-                                <span className="text-blue-800 dark:text-blue-400 font-bold text-xs">라이</span>
-                            </div>
-                            <div className="bg-nav-bg rounded-2xl rounded-tl-none p-3.5 flex-1 border border-border">
-                                <div className="text-[12px] font-bold text-foreground mb-1">라이프스포츠주민</div>
-                                <div className="text-[13px] text-foreground/80">라이프스포츠 근처 스터디카페 조용하고 좋아요! 시설도 엄청 깔끔합니다.</div>
-                            </div>
+                    <h3 className="font-bold text-foreground mb-4 text-sm">댓글 {comments.length}</h3>
+                    {loadingComments ? (
+                        <div className="flex justify-center py-8">
+                            <div className="w-6 h-6 border-2 border-secondary/30 border-t-secondary rounded-full animate-spin"></div>
                         </div>
-                    </div>
-                </div>
-            ) : (
-                /* 공식 데이터 안내 (공식 행사) */
-                <div className="mt-4 p-4 bg-secondary/5 rounded-2xl border border-secondary/10">
-                    <p className="text-[12px] text-secondary font-bold leading-relaxed">
-                        💡 이 정보는 한국관광공사의 공공데이터를 기반으로 제공됩니다. 
-                        현장 상황에 따라 내용이 다를 수 있으니 방문 전 공식 채널을 확인해 주세요.
-                    </p>
+                    ) : comments.length > 0 ? (
+                        <div className="space-y-5">
+                            {comments.map((comment: any) => (
+                                <div key={comment.id} className="flex space-x-3 items-start animate-fade-in">
+                                    <div className={`w-8 h-8 rounded-full shrink-0 flex items-center justify-center ${
+                                        comment.is_anonymous ? 'bg-indigo-50 text-indigo-500' : 'bg-secondary/10 text-secondary'
+                                    }`}>
+                                        <span className="font-bold text-[10px]">
+                                            {(comment.public_id || "익").substring(0, 2)}
+                                        </span>
+                                    </div>
+                                    <div className="bg-nav-bg rounded-2xl rounded-tl-none p-3.5 flex-1 border border-border/50">
+                                        <div className="text-[11px] font-bold text-foreground mb-1 flex justify-between">
+                                            <span>{comment.is_anonymous ? `익명 (${comment.public_id})` : "동네이웃"}</span>
+                                            <span className="text-gray-300 font-medium">조금 전</span>
+                                        </div>
+                                        <div className="text-[13px] text-foreground/80 leading-relaxed font-medium">{comment.content}</div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    ) : (
+                        <div className="py-12 text-center text-gray-300 border-2 border-dashed border-border rounded-[32px]">
+                            <p className="text-[13px] font-bold">아직 댓글이 없습니다.</p>
+                            <p className="text-[11px] mt-1 opacity-60">첫 댓글을 남겨 이웃과 소통해보세요!</p>
+                        </div>
+                    )}
                 </div>
             )}
             
-            {/* 하단 댓글창과 겹치지 않도록 충분한 여백 확보 */}
             <div className="h-28" />
         </div>
-    )
+    );
 }
+
 
 function LiveCreateForm() {
     const { bottomSheetData, closeBottomSheet } = useUIStore();

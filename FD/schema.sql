@@ -208,3 +208,89 @@ ALTER TABLE public.raw_items ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "모두에게 읽기 허용" ON public.events FOR SELECT USING (true);
 CREATE POLICY "모두에게 읽기 허용" ON public.events_ext FOR SELECT USING (true);
 CREATE POLICY "모두에게 읽기 허용" ON public.raw_items FOR SELECT USING (true);
+-- 7. 소식(게시글) 인터랙션 테이블
+-- 댓글 테이블
+CREATE TABLE IF NOT EXISTS public.post_comments (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    post_id UUID REFERENCES public.posts(id) ON DELETE CASCADE,
+    user_id UUID,
+    public_id TEXT, -- 익명 식별자
+    content TEXT NOT NULL,
+    is_anonymous BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 좋아요 테이블 (중복 방지)
+CREATE TABLE IF NOT EXISTS public.post_likes (
+    post_id UUID REFERENCES public.posts(id) ON DELETE CASCADE,
+    user_id TEXT NOT NULL, -- 또는 UUID
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    PRIMARY KEY (post_id, user_id)
+);
+
+-- RLS 활성화
+ALTER TABLE public.post_comments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.post_likes ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "모두에게 읽기 허용" ON public.post_comments FOR SELECT USING (true);
+CREATE POLICY "모두에게 읽기 허용" ON public.post_likes FOR SELECT USING (true);
+CREATE POLICY "모두에게 쓰기 허용" ON public.post_comments FOR INSERT WITH CHECK (true);
+CREATE POLICY "모두에게 쓰기 허용" ON public.post_likes FOR INSERT WITH CHECK (true);
+
+-- 8. 인터랙션 카운트 증가 RPC
+CREATE OR REPLACE FUNCTION increment_like_count(p_post_id UUID)
+RETURNS void AS $$
+BEGIN
+  UPDATE public.posts
+  SET likes_count = likes_count + 1
+  WHERE id = p_post_id;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION increment_comment_count(p_post_id UUID)
+RETURNS void AS $$
+BEGIN
+  UPDATE public.posts
+  SET comments_count = comments_count + 1
+  WHERE id = p_post_id;
+END;
+$$ LANGUAGE plpgsql;
+-- 9. 콘텐츠 모니터링 및 평판 시스템
+-- 신고 내역 테이블
+CREATE TABLE IF NOT EXISTS public.post_reports (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    post_id UUID REFERENCES public.posts(id) ON DELETE CASCADE,
+    user_id TEXT NOT NULL, -- 또는 UUID
+    reason TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE (post_id, user_id)
+);
+
+-- RLS 활성화
+ALTER TABLE public.post_reports ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "모두에게 읽기 허용" ON public.post_reports FOR SELECT USING (true);
+CREATE POLICY "모두에게 쓰기 허용" ON public.post_reports FOR INSERT WITH CHECK (true);
+
+-- 신고 처리 및 신뢰도 자동 감점 RPC
+CREATE OR REPLACE FUNCTION report_post(p_post_id UUID, p_user_id TEXT, p_reason TEXT DEFAULT '부적절한 정보')
+RETURNS BOOLEAN AS $$
+DECLARE
+  inserted_id UUID;
+BEGIN
+  -- 1. 신고 내역 삽입 시도
+  INSERT INTO public.post_reports (post_id, user_id, reason)
+  VALUES (p_post_id, p_user_id, p_reason)
+  ON CONFLICT (post_id, user_id) DO NOTHING
+  RETURNING id INTO inserted_id;
+
+  -- 2. 새롭게 신고된 경우에만 score 감점
+  IF inserted_id IS NOT NULL THEN
+    UPDATE public.posts
+    SET score = GREATEST(0.0, score - 0.1)
+    WHERE id = p_post_id;
+    RETURN TRUE;
+  END IF;
+
+  RETURN FALSE; -- 이미 신고함
+END;
+$$ LANGUAGE plpgsql;

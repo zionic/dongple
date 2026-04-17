@@ -52,6 +52,7 @@ export async function classifyAndLinkEvent(item: FestivalItem) {
 
     console.log(`[Link Success] Linked ${title} to existing event ${matchedEvent.id}`);
   } else {
+
     // 3. 매칭된 데이터가 없으면 신규 공식 이벤트로 등록 (신뢰도 0.9)
     const { data: newEvent, error: insertError } = await supabase
       .from('events')
@@ -76,6 +77,7 @@ export async function classifyAndLinkEvent(item: FestivalItem) {
 
     targetEventId = Number(newEvent.id);
     console.log(`[New Resource] Created new official event: ${title} (${targetEventId})`);
+
   }
 
   // 4. 확장 테이블(events_ext) 업데이트 (상세 메타데이터 보관)
