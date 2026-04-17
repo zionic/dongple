@@ -90,7 +90,7 @@ CREATE INDEX IF NOT EXISTS idx_events_lat_lng ON public.events USING btree (lat,
 
 -- 이벤트 확장 정보
 CREATE TABLE IF NOT EXISTS public.events_ext (
-    event_id UUID REFERENCES public.events(id) ON DELETE CASCADE PRIMARY KEY,
+    event_id BIGINT REFERENCES public.events(id) ON DELETE CASCADE PRIMARY KEY,
     source TEXT DEFAULT 'TOURAPI',
     ext_id TEXT,
     meta JSONB DEFAULT '{}'::jsonb,
