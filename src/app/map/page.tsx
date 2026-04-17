@@ -24,6 +24,7 @@ declare global {
 }
 
 const CATEGORIES = [
+    { id: "전체", label: "전체", icon: Home },
     { id: "기타", label: "기타", icon: Home },
     { id: "공원", label: "공원", icon: Trees },
     { id: "운동", label: "운동", icon: Dumbbell },
@@ -56,6 +57,7 @@ function MapContent() {
     const [isNearbyStatus, setIsNearbyStatus] = useState(false);
     const [sheetHeight, setSheetHeight] = useState(24);
     const [isDragging, setIsDragging] = useState(false);
+    const [selectedCategory, setSelectedCategory] = useState("전체");
 
     const mapRef = useRef<any>(null);
     const markersRef = useRef<any[]>([]);
@@ -240,8 +242,10 @@ function MapContent() {
         rootsRef.current.forEach(root => root.unmount());
         rootsRef.current = [];
 
-        // 1. 제보 데이터 마커 (기존)
-        markers.forEach(m => {
+        // 1. 제보 데이터 마커 (필터링 적용)
+        markers
+            .filter(m => selectedCategory === "전체" || m.category === selectedCategory)
+            .forEach(m => {
             const isSelected = expandedCardId === m.id;
             const isRequest = m.is_request;
             const statusColorClass = isRequest ? 'bg-orange-500' : m.status === '여유' ? 'bg-green-500' : m.status === '보통' ? 'bg-blue-500' : 'bg-red-500';
@@ -330,6 +334,29 @@ function MapContent() {
                                 <button onClick={() => setSearchQuery("")} className="absolute right-4 top-1/2 -translate-y-1/2 p-1 bg-foreground/5 rounded-full text-foreground/40"><X size={14} /></button>
                             )}
                         </div>
+                    </motion.div>
+
+                    {/* Category Filter Chips */}
+                    <motion.div 
+                        initial={{ opacity: 0, y: -10 }} 
+                        animate={{ opacity: 1, y: 0 }} 
+                        transition={{ delay: 0.1 }}
+                        className="flex overflow-x-auto pb-2 space-x-2 no-scrollbar pointer-events-auto"
+                    >
+                        {CATEGORIES.map((cat) => (
+                            <button
+                                key={cat.id}
+                                onClick={() => setSelectedCategory(cat.id)}
+                                className={`px-4 py-2.5 rounded-2xl text-[13px] font-black whitespace-nowrap transition-all border flex items-center space-x-2 ${
+                                    selectedCategory === cat.id
+                                    ? "bg-secondary text-white border-secondary shadow-lg shadow-secondary/20"
+                                    : "bg-nav-bg/80 backdrop-blur-xl text-foreground/50 border-border hover:bg-card-bg"
+                                }`}
+                            >
+                                <cat.icon size={14} />
+                                <span>{cat.label}</span>
+                            </button>
+                        ))}
                     </motion.div>
                 </div>
                 <AnimatePresence>

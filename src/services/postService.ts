@@ -108,7 +108,7 @@ export function subscribePosts(onUpdate: () => void) {
  */
 export async function likePost(postId: string) {
     const { error } = await supabase.rpc('increment_like_count', {
-        post_id: postId
+        p_post_id: postId
     });
 
     if (error) {
@@ -166,7 +166,7 @@ export async function createComment(payload: {
 
     // 댓글 수 증가
     await supabase.rpc('increment_comment_count', {
-        post_id: payload.post_id
+        p_post_id: payload.post_id
     });
 
     return data[0];
