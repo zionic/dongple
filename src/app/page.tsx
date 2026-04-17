@@ -10,12 +10,15 @@ import {
 import QuestionSummary from "@/components/dashboard/QuestionSummary";
 import { useEffect } from "react";
 import { useAuthStore } from "@/lib/store/authStore";
+import { useUIStore } from "@/lib/store/uiStore";
+import { fetchPosts, subscribePosts, Post } from "@/services/postService";
 import Link from "next/link";
 import { Map as MapIcon, ChevronRight } from "lucide-react";
 import { useUIStore } from "@/lib/store/uiStore";
 import { fetchPosts, subscribePosts, Post } from "@/services/postService";
 import OfficialEventSection from "@/features/events/components/OfficialEventSection";
 import LiveStatusBoard from "@/features/status/components/LiveStatusBoard";
+import IdentityHeader from "@/features/auth/components/IdentityHeader";
 
 type UserMode = "popular" | "interest";
 
@@ -72,6 +75,9 @@ export default function Home() {
     <div className="p-4 space-y-8 pb-10">
       {/* AI Summary Dashboard */}
       <QuestionSummary />
+
+      {/* User Identity & Reputation */}
+      <IdentityHeader />
 
       {/* Map Explorer CTA */}
       <Link href="/map" className="block mx-4">

@@ -2,7 +2,8 @@
 
 import { useEffect, useState, useRef, useImperativeHandle, forwardRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, BadgeCheck, CheckCircle2, ShieldCheck, User as UserIcon, Camera } from "lucide-react";
+import { X, BadgeCheck, CheckCircle2, ShieldCheck, User as UserIcon, Camera, AlertTriangle } from "lucide-react";
+import { reportContent, ReportReason } from "@/services/moderationService";
 
 import LiveStatusCreateForm from "@/components/forms/LiveStatusCreateForm";
 import { createPost } from "@/services/postService";
@@ -143,6 +144,8 @@ export default function BottomSheet() {
                      bottomSheetContent === "postDetail" ? "소식 상세보기" : 
                      bottomSheetContent === "liveCreate" ? "상황 제보" :
                      bottomSheetContent === "liveReply" ? "상황 알려주기" :
+                     bottomSheetContent === "liveDetail" ? "상황 정보" :
+                     bottomSheetContent === "contentReport" ? "부적절한 정보 신고" :
                      "상세 정보"}
                   </h3>
 
@@ -169,6 +172,7 @@ export default function BottomSheet() {
                   {bottomSheetContent === "liveCreate" && <LiveCreateForm />}
                   {bottomSheetContent === "liveReply" && <LiveReplyForm />}
                   {bottomSheetContent === "liveDetail" && <LiveDetailView />}
+                  {bottomSheetContent === "contentReport" && <ReportView />}
                 </div>
 
                 {/* Sticky Bottom Actions for Post Detail */}
@@ -399,6 +403,15 @@ function PostDetailView() {
                         <span className="text-[9px] font-bold text-secondary mt-1 uppercase">Official</span>
                     </div>
                 )}
+                {!isOfficial && (
+                    <button 
+                        onClick={() => openBottomSheet("contentReport", { targetId: bottomSheetData.id, targetType: "POST" })}
+                        className="ml-3 p-2 text-gray-300 hover:text-red-400 transition-colors"
+                        title="신고하기"
+                    >
+                        <AlertTriangle size={20} />
+                    </button>
+                )}
             </div>
 
             {isOfficial ? (
@@ -576,6 +589,99 @@ function LiveDetailView() {
                     </div>
                 )}
             </div>
+            
+            <div className="flex justify-end pt-2">
+                <button 
+                    onClick={() => openBottomSheet("contentReport", { targetId: detailItem.id, targetType: "STATUS" })}
+                    className="flex items-center space-x-1.5 px-3 py-2 text-gray-300 hover:text-red-400/80 transition-all text-[11px] font-bold"
+                >
+                    <AlertTriangle size={14} />
+                    <span>정보가 잘못되었나요? 신고하기</span>
+                </button>
+            </div>
+        </div>
+    );
+}
+
+function ReportView() {
+    const { bottomSheetData, closeBottomSheet } = useUIStore();
+    const { userId } = useAuthStore();
+    const [reason, setReason] = useState<ReportReason | "">("");
+    const [submitting, setSubmitting] = useState(false);
+    const [done, setDone] = useState(false);
+
+    const reasons: ReportReason[] = ["허위 정보", "광고/홍보", "욕설/비하", "기타"];
+
+    const handleReport = async () => {
+        if (!reason || !userId || !bottomSheetData?.targetId) return;
+        
+        setSubmitting(true);
+        try {
+            await reportContent(userId, bottomSheetData.targetId, bottomSheetData.targetType, reason);
+            setDone(true);
+            setTimeout(() => {
+                closeBottomSheet();
+            }, 2000);
+        } catch (error) {
+            console.error("Report failed:", error);
+            alert("신고 처리에 실패했습니다. 다시 시도해주세요.");
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
+    if (done) {
+        return (
+            <div className="flex flex-col items-center justify-center py-12 space-y-4">
+                <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center">
+                    <CheckCircle2 size={32} className="text-red-500" />
+                </div>
+                <p className="text-lg font-bold text-foreground">신고가 접수되었습니다.</p>
+                <p className="text-sm text-gray-400 text-center">깨끗한 동네를 위해 제보해주셔서 감사합니다.<br/>운영 정책에 따라 신속히 조치하겠습니다.</p>
+            </div>
+        );
+    }
+
+    return (
+        <div className="space-y-6">
+            <p className="text-[14px] text-gray-500 leading-relaxed font-medium">
+                해당 정보를 신고하시겠습니까?<br/>
+                신고된 정보는 동네 이웃들에게 노출이 제한될 수 있습니다.
+            </p>
+            
+            <div className="space-y-2">
+                <label className="text-[11px] font-black text-gray-400 uppercase tracking-wider ml-1">신고 사유 선택</label>
+                <div className="grid grid-cols-2 gap-2">
+                    {reasons.map((r) => (
+                        <button
+                            key={r}
+                            onClick={() => setReason(r)}
+                            className={`py-3 px-4 rounded-xl text-[13px] font-bold border transition-all text-left ${
+                                reason === r 
+                                ? "border-red-500 bg-red-50 text-red-600 shadow-sm" 
+                                : "border-border text-gray-500 bg-nav-bg hover:bg-gray-100"
+                            }`}
+                        >
+                            {r}
+                        </button>
+                    ))}
+                </div>
+            </div>
+
+            <button
+                onClick={handleReport}
+                disabled={!reason || submitting}
+                className="w-full py-4 bg-red-500 text-white rounded-2xl font-black text-[15px] shadow-lg shadow-red-500/20 disabled:opacity-50 active:scale-[0.98] transition-all"
+            >
+                {submitting ? "요청 중..." : "동네를 위해 신고하기"}
+            </button>
+
+            <button 
+                onClick={closeBottomSheet}
+                className="w-full py-3 text-[13px] font-bold text-gray-400 hover:text-gray-600 transition-colors"
+            >
+                취소
+            </button>
         </div>
     );
 }

@@ -22,6 +22,7 @@ export async function fetchPosts(limit = 10) {
     const { data, error } = await supabase
         .from("posts")
         .select("*")
+        .eq("is_hidden", false)
         .order("created_at", { ascending: false })
         .limit(limit);
 
@@ -40,6 +41,7 @@ export async function fetchPostsByCategory(category: string, limit = 10) {
         .from("posts")
         .select("*")
         .eq("category", category)
+        .eq("is_hidden", false)
         .order("created_at", { ascending: false })
         .limit(limit);
 
