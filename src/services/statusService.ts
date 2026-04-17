@@ -19,15 +19,38 @@ export interface LiveStatus {
  * 전역 실시간 상황 목록 조회 (만료되지 않은 것만)
  */
 export async function fetchLiveStatus() {
-    const { data, error } = await supabase
-        .from("live_status")
-        .select("*")
-        .eq("is_hidden", false)
-        .gt("expires_at", new Date().toISOString())
-        .order("created_at", { ascending: false });
+    try {
+        // 컬럼 존재 여부 체크
+        const { error: checkError } = await supabase
+            .from("live_status")
+            .select("is_hidden")
+            .limit(1);
 
-    if (error) throw error;
-    return data as LiveStatus[];
+        let query = supabase
+            .from("live_status")
+            .select("*")
+            .gt("expires_at", new Date().toISOString())
+            .order("created_at", { ascending: false });
+
+        if (!checkError) {
+            query = query.eq("is_hidden", false);
+        }
+
+        const { data, error } = await query;
+        if (error) throw error;
+        return data as LiveStatus[];
+    } catch (err) {
+        console.error("fetchLiveStatus resilience fallback:", err);
+        // 폴백: 필터 없이 조회
+        const { data, error } = await supabase
+            .from("live_status")
+            .select("*")
+            .gt("expires_at", new Date().toISOString())
+            .order("created_at", { ascending: false });
+        
+        if (error) throw error;
+        return data as LiveStatus[];
+    }
 }
 
 /**

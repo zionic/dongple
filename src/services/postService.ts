@@ -19,18 +19,39 @@ export interface Post {
  * 동네 소식 목록 조회
  */
 export async function fetchPosts(limit = 10) {
-    const { data, error } = await supabase
-        .from("posts")
-        .select("*")
-        .eq("is_hidden", false)
-        .order("created_at", { ascending: false })
-        .limit(limit);
+    try {
+        // 우선 컬럼 존재 여부를 확인합니다.
+        const { error: checkError } = await supabase
+            .from("posts")
+            .select("is_hidden")
+            .limit(1);
 
-    if (error) {
-        console.error("Error fetching posts:", error);
-        return [];
+        let query = supabase
+            .from("posts")
+            .select("*")
+            .order("created_at", { ascending: false })
+            .limit(limit);
+
+        // 에러가 없으면 (컬럼이 있으면) 필터 적용
+        if (!checkError) {
+            query = query.eq("is_hidden", false);
+        }
+
+        const { data, error } = await query;
+        if (error) throw error;
+        return data as Post[];
+    } catch (err) {
+        console.error("fetchPosts resilience fallback:", err);
+        // 폴백: 필터 없이 전체 조회
+        const { data, error } = await supabase
+            .from("posts")
+            .select("*")
+            .order("created_at", { ascending: false })
+            .limit(limit);
+        
+        if (error) return [];
+        return data as Post[];
     }
-    return data as Post[];
 }
 
 /**

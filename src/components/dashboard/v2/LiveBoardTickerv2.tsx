@@ -99,7 +99,7 @@ export default function LiveBoardTickerv2() {
             {/* Sub Actions */}
             <div className="flex items-center justify-between mt-4 px-2">
                 <p className="text-[11px] font-bold text-gray-400">
-                    지금 12곳의 실시간 상황이 올라왔어요
+                    지금 {liveUpdates.length}곳의 실시간 상황이 올라왔어요
                 </p>
                 <div className="flex space-x-2">
                     <button className="text-[10px] font-black text-[#795548] flex items-center">

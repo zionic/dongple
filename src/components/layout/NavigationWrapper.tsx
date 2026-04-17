@@ -9,9 +9,9 @@ export default function NavigationWrapper({ children }: { children: React.ReactN
   const pathname = usePathname();
   
   // V2 디자인이 적용된 경로들
-  const isV2Path = pathname?.startsWith('/v2') || pathname === '/map' || pathname === '/news';
-  // 헤더를 숨겨야 하는 경로 (지도는 자체 플로팅 헤더 사용)
-  const hideHeader = pathname === '/map';
+  const isV2Path = pathname === '/' || pathname?.startsWith('/v2') || pathname === '/map' || pathname === '/news';
+  // 헤더를 숨겨야 하는 경로 (홈 V2와 지도는 자체 플로팅 헤더 활용)
+  const hideHeader = pathname === '/' || pathname === '/map';
 
   return (
     <div className="max-w-md md:max-w-2xl lg:max-w-4xl mx-auto min-h-screen bg-background shadow-sm flex flex-col relative">

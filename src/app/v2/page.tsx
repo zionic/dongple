@@ -16,6 +16,7 @@ import HeroSection from "@/components/dashboard/v2/HeroSection";
 import QuestionSummaryV2 from "@/components/dashboard/v2/QuestionSummaryV2";
 import LiveBoardTickerv2 from "@/components/dashboard/v2/LiveBoardTickerv2";
 import BottomNavV2 from "@/components/layout/v2/BottomNavV2";
+import OfficialEventSection from "@/features/events/components/OfficialEventSection";
 
 import { useUIStore } from "@/lib/store/uiStore";
 import { fetchPosts, subscribePosts, Post } from "@/services/postService";
@@ -61,6 +62,11 @@ export default function HomeV2() {
 
             {/* V2 실시간 동형 티커 */}
             <LiveBoardTickerv2 />
+
+            {/* 공식 행사 섹션 (Phase 1 핵심 기능) */}
+            <div className="mt-8">
+                <OfficialEventSection />
+            </div>
 
             {/* V2 AI 요약 캐러셀 */}
             <QuestionSummaryV2 />
@@ -122,19 +128,6 @@ export default function HomeV2() {
             {/* V2 전용 하단 네비게이션 */}
             <BottomNavV2 />
 
-            <style jsx global>{`
-                /* 기존 레이아웃의 헤더/푸터 숨기기 (V2 비교용) */
-                header, footer, nav {
-                    display: none !important;
-                }
-                .no-scrollbar::-webkit-scrollbar {
-                    display: none;
-                }
-                .no-scrollbar {
-                    -ms-overflow-style: none;
-                    scrollbar-width: none;
-                }
-            `}</style>
         </div>
     );
 }

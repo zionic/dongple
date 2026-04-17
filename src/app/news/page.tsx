@@ -10,7 +10,6 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import CategorizedNewsCarousel from "@/components/news/CategorizedNewsCarousel";
-import BottomNavV2 from "@/components/layout/v2/BottomNavV2";
 
 function NewsContent() {
     const searchParams = useSearchParams();
@@ -121,23 +120,6 @@ function NewsContent() {
                     color="text-purple-500"
                 />
             </div>
-
-            {/* Bottom Nav Integration */}
-            <BottomNavV2 />
-
-            <style jsx global>{`
-                /* Hide header/footer from base layout if necessary */
-                header.base-header, nav.base-nav {
-                    display: none !important;
-                }
-                .no-scrollbar::-webkit-scrollbar {
-                    display: none;
-                }
-                .no-scrollbar {
-                    -ms-overflow-style: none;
-                    scrollbar-width: none;
-                }
-            `}</style>
         </div>
     );
 }

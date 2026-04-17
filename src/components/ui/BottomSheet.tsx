@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef, useImperativeHandle, forwardRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, BadgeCheck, CheckCircle2, ShieldCheck, User as UserIcon, Camera, AlertTriangle } from "lucide-react";
+import { X, BadgeCheck, CheckCircle2, ShieldCheck, User as UserIcon, Camera, AlertTriangle, Heart, Flag } from "lucide-react";
 import { reportContent, ReportReason } from "@/services/moderationService";
 
 
@@ -444,6 +444,7 @@ function PostDetailView() {
                     {bottomSheetData?.title || bottomSheetData?.content?.substring(0, 30)}
                 </h2>
                 {!isOfficial && (
+                  <>
                     <button 
                         onClick={handleLike}
                         className={`ml-3 flex flex-col items-center px-4 py-2.5 rounded-2xl transition-all border ${
@@ -463,6 +464,7 @@ function PostDetailView() {
                         <Flag size={20} fill={isReported ? "currentColor" : "none"} />
                         <span className="text-[10px] font-black mt-1">{isReported ? "신고됨" : "신고"}</span>
                     </button>
+                  </>
                 )}
                 {!isOfficial && (
                     <button 
