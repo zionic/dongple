@@ -10,9 +10,10 @@ CREATE TABLE IF NOT EXISTS public.live_status (
     status_color TEXT,
     is_request BOOLEAN DEFAULT FALSE,
     verified_count INTEGER DEFAULT 0,
+    is_hidden BOOLEAN DEFAULT FALSE, -- 신고 누적으로 인한 숨김 처리
     latitude DOUBLE PRECISION,
     longitude DOUBLE PRECISION,
-    message TEXT, -- 상세 메시지
+    message TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     expires_at TIMESTAMPTZ NOT NULL DEFAULT (now() + interval '2 hours')
 );
@@ -36,6 +37,7 @@ CREATE TABLE IF NOT EXISTS public.posts (
     user_id TEXT, -- UUID에서 TEXT로 변경 (익명 ID u-... 대응용)
     public_id TEXT,
     is_anonymous BOOLEAN DEFAULT TRUE,
+    is_hidden BOOLEAN DEFAULT FALSE, -- 신고 누적으로 인한 숨김 처리
     score DECIMAL(3, 2) DEFAULT 0.5,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     likes_count INTEGER DEFAULT 0,
@@ -54,25 +56,39 @@ CREATE TABLE IF NOT EXISTS public.profiles (
     last_active_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 5. RLS(Row Level Security) 설정 및 정책
+-- 5. 신고 내역 테이블
+CREATE TABLE IF NOT EXISTS public.reports (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    reporter_id TEXT NOT NULL, -- 신고자 ID
+    target_id UUID NOT NULL,   -- 신고 대상 소식/상황 ID
+    target_type TEXT NOT NULL, -- POST, STATUS
+    reason TEXT NOT NULL,      -- 허위 정보, 홍보 등
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE (reporter_id, target_id) -- 중복 신고 방지
+);
+
+-- 6. RLS(Row Level Security) 설정 및 정책
 ALTER TABLE public.live_status ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.status_verifications ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.posts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.reports ENABLE ROW LEVEL SECURITY;
 
 -- 공통 읽기 정책
 CREATE POLICY "모두에게 읽기 허용" ON public.live_status FOR SELECT USING (true);
 CREATE POLICY "모두에게 읽기 허용" ON public.status_verifications FOR SELECT USING (true);
 CREATE POLICY "모두에게 읽기 허용" ON public.posts FOR SELECT USING (true);
 CREATE POLICY "모두에게 읽기 허용" ON public.profiles FOR SELECT USING (true);
+CREATE POLICY "모두에게 읽기 허용" ON public.reports FOR SELECT USING (true);
 
 -- 공통 쓰기 정책
 CREATE POLICY "모두에게 쓰기 허용" ON public.live_status FOR INSERT WITH CHECK (true);
 CREATE POLICY "모두에게 쓰기 허용" ON public.status_verifications FOR INSERT WITH CHECK (true);
 CREATE POLICY "모두에게 쓰기 허용" ON public.posts FOR INSERT WITH CHECK (true);
-CREATE POLICY "모두에게 쓰기 허용" ON public.profiles FOR ALL USING (true); -- 초기 개발용 편의
+CREATE POLICY "모두에게 쓰기 허용" ON public.profiles FOR ALL USING (true);
+CREATE POLICY "모두에게 쓰기 허용" ON public.reports FOR INSERT WITH CHECK (true);
 
--- 5. Helper Functions (인증 수 증가 등)
+-- 7. Helper Functions
 CREATE OR REPLACE FUNCTION increment_verified_count(status_id UUID)
 RETURNS void AS $$
 BEGIN
@@ -82,19 +98,16 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- 5-1. 중복 방지 인증 및 카운트 증가 (1차 코드리뷰 피드백 반영)
 CREATE OR REPLACE FUNCTION verify_status_once(p_status_id UUID, p_user_id TEXT)
 RETURNS BOOLEAN AS $$
 DECLARE
   inserted_id UUID;
 BEGIN
-  -- 1. 인증 내역 삽입 시도
   INSERT INTO public.status_verifications (status_id, user_id)
   VALUES (p_status_id, p_user_id)
   ON CONFLICT (status_id, user_id) DO NOTHING
   RETURNING id INTO inserted_id;
 
-  -- 2. 새롭게 삽입된 경우에만 카운트 증가
   IF inserted_id IS NOT NULL THEN
     UPDATE public.live_status
     SET verified_count = verified_count + 1
@@ -102,12 +115,58 @@ BEGIN
     RETURN TRUE;
   END IF;
 
-  RETURN FALSE; -- 이미 인증함
+  RETURN FALSE;
 END;
 $$ LANGUAGE plpgsql;
 
--- 6. TourAPI 연동용 신규 테이블 (수동 실행 완료)
--- 공식 행사/축제 테이블
+-- 8. Moderation RPC: 신고 제출 및 자동 블라인드
+CREATE OR REPLACE FUNCTION submit_report(
+  p_reporter_id TEXT,
+  p_target_id UUID,
+  p_target_type TEXT,
+  p_reason TEXT
+)
+RETURNS JSON AS $$
+DECLARE
+  v_report_count INTEGER;
+  v_author_id TEXT;
+  v_already_hidden BOOLEAN;
+BEGIN
+  -- 1. 신고 삽입
+  INSERT INTO public.reports (reporter_id, target_id, target_type, reason)
+  VALUES (p_reporter_id, p_target_id, p_target_type, p_reason)
+  ON CONFLICT DO NOTHING;
+
+  -- 2. 현재 신고 횟수 확인
+  SELECT COUNT(*) INTO v_report_count
+  FROM public.reports
+  WHERE target_id = p_target_id;
+
+  -- 3. 임계치(5회) 초과 시 처리
+  IF v_report_count >= 5 THEN
+    IF p_target_type = 'POST' THEN
+      SELECT user_id, is_hidden INTO v_author_id, v_already_hidden FROM public.posts WHERE id = p_target_id;
+      UPDATE public.posts SET is_hidden = TRUE WHERE id = p_target_id;
+    ELSIF p_target_type = 'STATUS' THEN
+      SELECT is_hidden INTO v_already_hidden FROM public.live_status WHERE id = p_target_id;
+      UPDATE public.live_status SET is_hidden = TRUE WHERE id = p_target_id;
+    END IF;
+
+    -- 4. 신뢰 점수 차감
+    IF v_already_hidden = FALSE AND v_author_id IS NOT NULL THEN
+      UPDATE public.profiles
+      SET trust_score = GREATEST(0, trust_score - 0.2)
+      WHERE user_id = v_author_id;
+    END IF;
+
+    RETURN json_build_object('status', 'hidden', 'count', v_report_count);
+  END IF;
+
+  RETURN json_build_object('status', 'reported', 'count', v_report_count);
+END;
+$$ LANGUAGE plpgsql;
+
+-- 9. TourAPI 관련 테이블
 CREATE TABLE IF NOT EXISTS public.events (
     id BIGINT GENERATED BY DEFAULT AS IDENTITY NOT NULL,
     title CHARACTER VARYING(255) NOT NULL,
@@ -125,10 +184,8 @@ CREATE TABLE IF NOT EXISTS public.events (
     CONSTRAINT events_pkey PRIMARY KEY (id)
 );
 
--- 좌표 기반 조회를 위한 인덱스
 CREATE INDEX IF NOT EXISTS idx_events_lat_lng ON public.events USING btree (lat, lng);
 
--- 이벤트 확장 정보
 CREATE TABLE IF NOT EXISTS public.events_ext (
     event_id BIGINT REFERENCES public.events(id) ON DELETE CASCADE PRIMARY KEY,
     source TEXT DEFAULT 'TOURAPI',
@@ -137,7 +194,6 @@ CREATE TABLE IF NOT EXISTS public.events_ext (
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 원본 데이터 보존용
 CREATE TABLE IF NOT EXISTS public.raw_items (
     id BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
     source TEXT NOT NULL,

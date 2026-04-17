@@ -10,6 +10,8 @@ import {
 import QuestionSummary from "@/components/dashboard/QuestionSummary";
 import { useEffect } from "react";
 import { useAuthStore } from "@/lib/store/authStore";
+import { useUIStore } from "@/lib/store/uiStore";
+import { fetchPosts, subscribePosts, Post } from "@/services/postService";
 import Link from "next/link";
 import { Map as MapIcon, ChevronRight } from "lucide-react";
 import OfficialEventSection from "@/features/events/components/OfficialEventSection";
