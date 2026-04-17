@@ -3,38 +3,90 @@
 @tailwind utilities;
 
 :root {
-  --primary: #795548;
-  --secondary: #2E7D32;
-  --accent: #A67C52;
-  --background: #FDFBF7;
-  --foreground: #3E2723;
-  --card-bg: #FFFFFF;
-  --nav-bg: rgba(255, 255, 255, 0.85);
-  --border: rgba(62, 39, 35, 0.1);
+  --background: #ffffff;
+  --foreground: #0f172a;
+  
+  --primary: #0f172a;
+  --primary-foreground: #ffffff;
+  
+  --secondary: #10b981;
+  --secondary-foreground: #ffffff;
+  
+  --accent: #f43f5e;
+  --accent-foreground: #ffffff;
+
+  --card-bg: rgba(255, 255, 255, 0.8);
+  --nav-bg: rgba(248, 250, 252, 0.8);
+  --border: rgba(15, 23, 42, 0.08);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #1D1616;
-    --foreground: #FDFBF7;
-    --card-bg: #2A1F1F;
-    --nav-bg: rgba(29, 22, 22, 0.95);
-    --border: rgba(255, 255, 255, 0.1);
-  }
+.dark {
+  --background: #020617;
+  --foreground: #f8fafc;
+  
+  --primary: #f8fafc;
+  --primary-foreground: #020617;
+  
+  --secondary: #34d399;
+  --secondary-foreground: #022c22;
+  
+  --accent: #fb7185;
+  --accent-foreground: #4c0519;
+
+  --card-bg: rgba(15, 23, 42, 0.8);
+  --nav-bg: rgba(2, 6, 23, 0.8);
+  --border: rgba(255, 255, 255, 0.08);
 }
 
 body {
   color: var(--foreground);
   background: var(--background);
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  @apply antialiased transition-colors duration-300;
 }
 
 @layer components {
-  .btn-primary {
-    @apply bg-[#795548] text-white px-4 py-2 rounded-lg font-bold hover:bg-[#5D4037] transition-colors;
+  .glass-card {
+    @apply bg-card-bg backdrop-blur-2xl border border-border shadow-2xl;
   }
+  
+  .glass-nav {
+    @apply bg-nav-bg backdrop-blur-xl border border-border;
+  }
+  
+  .text-gradient-primary {
+    @apply bg-clip-text text-transparent bg-gradient-to-br from-foreground to-foreground/60;
+  }
+}
 
-  .btn-outline-green {
-    @apply border border-[#2E7D32] text-[#2E7D32] px-4 py-2 rounded-lg font-bold hover:bg-[#E8F5E9] transition-colors;
-  }
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 10px;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }

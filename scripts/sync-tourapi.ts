@@ -8,19 +8,48 @@ import { sendSlackNotification } from '../src/services/tourapi/notifier';
 
 async function main() {
   console.log('--- TourAPI Sync Start ---');
+  const startTime = Date.now();
   
+  let stats = {
+    total: 0,
+    success: 0,
+    failed: 0,
+    details: ''
+  };
+
   try {
     // 1. 축제 정보 수집
     const items = await collectFestivals();
+    stats.total = items.length;
     
     if (items.length > 0) {
-      // 2. 각 아이템에 대해 분류 및 링크 시도
-      for (const item of items) {
-        await classifyAndLinkEvent(item);
+      console.log(`${items.length}개의 데이터를 수집했습니다. 처리를 시작합니다...`);
+
+      // 2. 병렬 처리 (제한된 동시성)
+      const CONCURRENCY = 5;
+      for (let i = 0; i < items.length; i += CONCURRENCY) {
+        const chunk = items.slice(i, i + CONCURRENCY);
+        const results = await Promise.allSettled(
+          chunk.map(item => classifyAndLinkEvent(item))
+        );
+
+        results.forEach((res, idx) => {
+          if (res.status === 'fulfilled') {
+            stats.success++;
+          } else {
+            stats.failed++;
+            console.error(`[Process Error] ${items[i + idx]?.title}:`, res.reason);
+          }
+        });
       }
       
-      console.log(`성공적으로 ${items.length}개의 데이터를 처리했습니다.`);
-      await sendSlackNotification(`성공적으로 ${items.length}개의 데이터를 수집 및 연동했습니다.`, { items_count: items.length }, 'SUCCESS');
+      const duration = ((Date.now() - startTime) / 1000).toFixed(1);
+      stats.details = `${duration}초 동안 ${stats.success}개를 успешно 처리했습니다.`;
+      
+      console.log(`동기화 완료: 성공 ${stats.success}, 실패 ${stats.failed}`);
+      await sendSlackNotification('Batch Completed Successfully', stats);
+    } else {
+      await sendSlackNotification('No Items to Sync', stats);
     }
 
   } catch (err: any) {
@@ -29,7 +58,7 @@ async function main() {
     process.exit(1);
   }
 
-  console.log('--- TourAPI Sync Completed ---');
+  console.log('--- TourAPI Sync Finished ---');
 }
 
 main();
