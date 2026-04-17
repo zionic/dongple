@@ -55,8 +55,44 @@ export async function classifyAndLinkEvent(item: FestivalItem) {
 
     console.log(`[Link Success] Linked ${title} to existing event ${matchedEvent.id}`);
   } else {
-    // 3. 매칭된 데이터가 없으면 신규 공식 이벤트로 등록 (Optional)
+    // 3. 매칭된 데이터가 없으면 신규 공식 이벤트로 등록
     console.log(`[New Resource] Found new official event: ${title}`);
-    // 향후 자동 등록 로직 추가 가능
+    
+    // events 테이블에 신규 등록 (Upsert - title과 좌표 기준 중복 방지 로직은 서비스 정책에 따라 조정)
+    const { data: newEvent, error: insertError } = await supabase
+      .from('events')
+      .insert([{
+        title,
+        content: item.addr1,
+        lat,
+        lng,
+        trust_score: 0.8, // 공식 데이터는 높은 초기 신뢰도 부여
+        category_code: CATEGORY_MAP[item.cat3] || 'CAT_OTHERS',
+        thumbnail_url: item.firstimage,
+        address: item.addr1,
+        event_start_date: item.eventstartdate,
+        event_end_date: item.eventenddate
+      }])
+      .select()
+      .single();
+
+    if (insertError) {
+      console.error(`[Insert Error] Failed to create event ${title}:`, insertError);
+      throw insertError;
+    }
+
+    if (newEvent) {
+      // 확장 테이블 연동
+      await supabase
+        .from('events_ext')
+        .upsert({
+          event_id: newEvent.id,
+          source: 'TOURAPI',
+          ext_id: contentid,
+          meta: item
+        });
+      
+      console.log(`[Register Success] Registered ${title} as new official event ${newEvent.id}`);
+    }
   }
 }

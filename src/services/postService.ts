@@ -22,6 +22,7 @@ export async function fetchPosts(limit = 10) {
     const { data, error } = await supabase
         .from("posts")
         .select("*")
+        .gte("score", 0.2) // Hide low reputation posts
         .order("created_at", { ascending: false })
         .limit(limit);
 
@@ -40,6 +41,7 @@ export async function fetchPostsByCategory(category: string, limit = 10) {
         .from("posts")
         .select("*")
         .eq("category", category)
+        .gte("score", 0.2) // Hide low reputation posts
         .order("created_at", { ascending: false })
         .limit(limit);
 
@@ -170,4 +172,18 @@ export async function createComment(payload: {
     });
 
     return data[0];
+}
+
+/**
+ * 게시글 신고
+ */
+export async function reportPost(postId: string, userId: string, reason: string = "부적절한 정보") {
+    const { data, error } = await supabase.rpc('report_post', {
+        p_post_id: postId,
+        p_user_id: userId,
+        p_reason: reason
+    });
+
+    if (error) throw error;
+    return data as boolean; // 새롭게 신고됨 여부
 }

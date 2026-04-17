@@ -184,3 +184,42 @@ BEGIN
   WHERE id = p_post_id;
 END;
 $$ LANGUAGE plpgsql;
+-- 9. 콘텐츠 모니터링 및 평판 시스템
+-- 신고 내역 테이블
+CREATE TABLE IF NOT EXISTS public.post_reports (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    post_id UUID REFERENCES public.posts(id) ON DELETE CASCADE,
+    user_id TEXT NOT NULL, -- 또는 UUID
+    reason TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE (post_id, user_id)
+);
+
+-- RLS 활성화
+ALTER TABLE public.post_reports ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "모두에게 읽기 허용" ON public.post_reports FOR SELECT USING (true);
+CREATE POLICY "모두에게 쓰기 허용" ON public.post_reports FOR INSERT WITH CHECK (true);
+
+-- 신고 처리 및 신뢰도 자동 감점 RPC
+CREATE OR REPLACE FUNCTION report_post(p_post_id UUID, p_user_id TEXT, p_reason TEXT DEFAULT '부적절한 정보')
+RETURNS BOOLEAN AS $$
+DECLARE
+  inserted_id UUID;
+BEGIN
+  -- 1. 신고 내역 삽입 시도
+  INSERT INTO public.post_reports (post_id, user_id, reason)
+  VALUES (p_post_id, p_user_id, p_reason)
+  ON CONFLICT (post_id, user_id) DO NOTHING
+  RETURNING id INTO inserted_id;
+
+  -- 2. 새롭게 신고된 경우에만 score 감점
+  IF inserted_id IS NOT NULL THEN
+    UPDATE public.posts
+    SET score = GREATEST(0.0, score - 0.1)
+    WHERE id = p_post_id;
+    RETURN TRUE;
+  END IF;
+
+  RETURN FALSE; -- 이미 신고함
+END;
+$$ LANGUAGE plpgsql;

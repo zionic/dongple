@@ -2,13 +2,12 @@
 
 import { useEffect, useState, useRef, useImperativeHandle, forwardRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, BadgeCheck, CheckCircle2, ShieldCheck, User as UserIcon, Camera, Heart, AlertTriangle } from "lucide-react";
+import { X, BadgeCheck, CheckCircle2, ShieldCheck, User as UserIcon, Camera, Heart, AlertTriangle, Flag } from "lucide-react";
 
 import LiveStatusCreateForm from "@/components/forms/LiveStatusCreateForm";
-import { createPost, createComment, fetchComments, likePost } from "@/services/postService";
+import { createPost, createComment, fetchComments, likePost, reportPost } from "@/services/postService";
 import { useAuthStore } from "@/lib/store/authStore";
 import { useUIStore } from "@/lib/store/uiStore";
-import { reportContent, ReportReason } from "@/services/moderationService";
 
 export default function BottomSheet() {
   const { isBottomSheetOpen, bottomSheetContent, bottomSheetData, closeBottomSheet } = useUIStore();
@@ -365,6 +364,7 @@ function PostDetailView() {
     const [likes, setLikes] = useState(bottomSheetData?.likes_count || 0);
     const [isLiked, setIsLiked] = useState(false);
     const [loadingComments, setLoadingComments] = useState(false);
+    const [isReported, setIsReported] = useState(false);
 
     const loadComments = async () => {
         if (!bottomSheetData?.id || isOfficial) return;
@@ -393,9 +393,7 @@ function PostDetailView() {
     }, [bottomSheetData?.id]);
 
     const handleLike = async (e: React.MouseEvent) => {
-        e.stopPropagation();
-        if (!bottomSheetData?.id) return;
-        
+        if (!userId || isOfficial) return;
         const newIsLiked = !isLiked;
         setIsLiked(newIsLiked);
         setLikes(prev => newIsLiked ? prev + 1 : Math.max(0, prev - 1));
@@ -406,6 +404,20 @@ function PostDetailView() {
             setIsLiked(!newIsLiked);
             setLikes(prev => !newIsLiked ? prev + 1 : Math.max(0, prev - 1));
             console.error("Like failed:", error);
+        }
+    };
+
+    const handleReport = async () => {
+        if (!userId || isReported) return;
+        if (!confirm("이 게시글을 신고하시겠습니까? 동플 클린 가이드에 따라 검토됩니다.")) return;
+
+        setIsReported(true);
+        try {
+            await reportPost(bottomSheetData.id, userId);
+            alert("신고가 접수되었습니다. 신뢰도가 낮은 게시물은 자동으로 숨김 처리됩니다.");
+        } catch (error) {
+            console.error("Report failed:", error);
+            setIsReported(false);
         }
     };
 
@@ -435,6 +447,16 @@ function PostDetailView() {
                     >
                         <Heart size={22} fill={isLiked ? "currentColor" : "none"} />
                         <span className="text-[10px] font-black mt-1">{likes}</span>
+                    </button>
+                    <button 
+                        onClick={handleReport}
+                        className={`ml-2 flex flex-col items-center px-4 py-2.5 rounded-2xl transition-all border ${
+                            isReported ? "bg-gray-100 text-gray-400 border-gray-200" : "bg-nav-bg text-gray-300 border-border hover:border-gray-300 hover:text-orange-500"
+                        }`}
+                        disabled={isReported}
+                    >
+                        <Flag size={20} fill={isReported ? "currentColor" : "none"} />
+                        <span className="text-[10px] font-black mt-1">{isReported ? "신고됨" : "신고"}</span>
                     </button>
                 )}
             </div>
