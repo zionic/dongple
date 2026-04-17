@@ -1,6 +1,12 @@
+> 기준 문서: `동플허브_마스터스펙_구현.md`
+> 관련 문서: `동플허브_tourapi_구현.md`
+> 문서 성격: 보완
+> 적용 범위: TourAPI 연동 확장, 신뢰도 보정, 외부 데이터 활용 강화
+> 현재 저장소 기준: 본 문서는 TourAPI 확장 방향을 설명하며, 앱 코드 구현체는 현재 폴더에 포함되어 있지 않을 수 있음
+
 # [동플 허브] 외부 API 연동 및 기능 확장 지침서 (TourAPI 4.0)
 
-- **문서 위치**: `C:\dongple_workspace\dongple\FD\dongple_tourapi_integration.md`
+- **문서 위치**: `C:\dongple_workspace\dongple\FD\동플허브_tourapi_보완.md`
 - **작성일**: 2026-04-15
 - **대상**: 시니어 개발자 및 시스템 설계자
 
