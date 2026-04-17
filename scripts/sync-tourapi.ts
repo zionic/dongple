@@ -20,12 +20,12 @@ async function main() {
       }
       
       console.log(`성공적으로 ${items.length}개의 데이터를 처리했습니다.`);
-      await sendSlackNotification(`Batch Success: ${items.length} items synced.`);
+      await sendSlackNotification(`성공적으로 ${items.length}개의 데이터를 수집 및 연동했습니다.`, { items_count: items.length }, 'SUCCESS');
     }
 
   } catch (err: any) {
     console.error('Batch Execution Error:', err);
-    await sendSlackNotification('Batch Failed', { error: err.message });
+    await sendSlackNotification('배치 실행 중 오류가 발생했습니다.', { error: err.message }, 'ERROR');
     process.exit(1);
   }
 
