@@ -53,8 +53,8 @@ async function main() {
     }
 
   } catch (err: any) {
-    console.error('Batch Critical Error:', err);
-    await sendSlackNotification('Batch Critical Failure', { ...stats, error: err.message });
+    console.error('Batch Execution Error:', err);
+    await sendSlackNotification('배치 실행 중 오류가 발생했습니다.', { error: err.message }, 'ERROR');
     process.exit(1);
   }
 

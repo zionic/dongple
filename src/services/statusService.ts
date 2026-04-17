@@ -22,6 +22,7 @@ export async function fetchLiveStatus() {
     const { data, error } = await supabase
         .from("live_status")
         .select("*")
+        .eq("is_hidden", false)
         .gt("expires_at", new Date().toISOString())
         .order("created_at", { ascending: false });
 

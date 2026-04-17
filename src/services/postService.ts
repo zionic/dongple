@@ -22,7 +22,7 @@ export async function fetchPosts(limit = 10) {
     const { data, error } = await supabase
         .from("posts")
         .select("*")
-        .gte("score", 0.2) // Hide low reputation posts
+        .eq("is_hidden", false)
         .order("created_at", { ascending: false })
         .limit(limit);
 
