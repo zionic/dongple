@@ -8,7 +8,7 @@ import NavigationWrapper from "@/components/layout/NavigationWrapper";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "동플 – 우리 동네 실시간 순간을 기록하고 공유하는 곳",
+  title: "동플 ex – 우리 동네 순간을 기록하라!",
   description: "동플은 우리 동네의 오늘, 매 순간의 소식을 실시간으로 기록하고 공유하는 지역 밀착형 플랫폼입니다. 만석공원 벚꽃 축제부터 동네 카페 소식까지 지금 바로 확인하세요!",
   keywords: ["동플", "우리동네", "지역커뮤니티", "실시간정보", "동네지도", "동네소식"],
   metadataBase: new URL('https://dongple.vercel.app'),

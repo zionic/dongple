@@ -97,7 +97,8 @@ export default function LiveStatusBoard() {
                 status: newStatus,
                 status_color: newBadgeColor,
                 is_request: false,
-                verified_count: 1
+                verified_count: 1,
+                message: replyText
             });
         } catch (error) {
             console.error("업데이트 실패:", error);
