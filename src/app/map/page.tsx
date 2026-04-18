@@ -12,7 +12,8 @@ import { useUIStore } from "@/lib/store/uiStore";
 import { useLocationStore } from "@/lib/store/locationStore";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
-    Home, Trees, Dumbbell, Coffee, ShoppingBag, Store, ParkingCircle, HeartPulse, Building2 
+    Home, Trees, Dumbbell, Coffee, ShoppingBag, Store, ParkingCircle, HeartPulse, Building2,
+    LocateFixed
 } from "lucide-react";
 
 // New Components
@@ -61,6 +62,7 @@ function MapContent() {
     const [sheetHeight, setSheetHeight] = useState(24);
     const [isDragging, setIsDragging] = useState(false);
     const [selectedCategory, setSelectedCategory] = useState("전체");
+    const [specialFilters, setSpecialFilters] = useState({ barrierFree: false, petFriendly: false });
 
     // Click-to-Pin states
     const [clickedLatLng, setClickedLatLng] = useState<{ lat: number, lng: number } | null>(null);
@@ -95,7 +97,7 @@ function MapContent() {
         if (mapRef.current) {
             renderMarkers();
         }
-    }, [markers, officialEvents, expandedCardId, clickedLatLng]);
+    }, [markers, officialEvents, expandedCardId, clickedLatLng, selectedCategory, specialFilters]);
 
     const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
         setIsDragging(true);
@@ -124,7 +126,7 @@ function MapContent() {
         if (!queryToSearch?.trim()) return;
         setIsResultOpen(false);
         try {
-            const poiResults = await searchPlaces(queryToSearch);
+            const poiResults = await searchPlaces(queryToSearch, storeLat, storeLng);
             setSearchResults(poiResults);
             if (poiResults?.length > 0) {
                 setIsResultOpen(true);
@@ -205,6 +207,16 @@ function MapContent() {
         loadOfficial();
     };
 
+    const handleMyLocation = async () => {
+        const { fetchLocation } = useLocationStore.getState();
+        await fetchLocation();
+        const { latitude, longitude } = useLocationStore.getState();
+        if (mapRef.current) {
+            mapRef.current.panTo(new window.naver.maps.LatLng(latitude, longitude));
+            mapRef.current.setZoom(16);
+        }
+    };
+
     useEffect(() => {
         if (typeof window !== 'undefined' && window.naver?.maps && !mapRef.current) {
             initMap();
@@ -253,7 +265,12 @@ function MapContent() {
 
         // 2. Live Status Markers (Shape: Balloon with status dot)
         markers
-            .filter(m => selectedCategory === "전체" || m.category === selectedCategory)
+            .filter(m => {
+                const catMatch = selectedCategory === "전체" || m.category === selectedCategory;
+                const barrierMatch = !specialFilters.barrierFree || (m as any).meta?.barrierFree;
+                const petMatch = !specialFilters.petFriendly || (m as any).meta?.petFriendly;
+                return catMatch && barrierMatch && petMatch;
+            })
             .forEach(m => {
             const isSelected = expandedCardId === m.id;
             const el = document.createElement('div');
@@ -288,7 +305,13 @@ function MapContent() {
         });
 
         // 3. Official Event Markers (Shape: Circular Pulse)
-        officialEvents.forEach(festival => {
+        officialEvents
+            .filter(e => {
+                const barrierMatch = !specialFilters.barrierFree || e.meta?.barrierFree;
+                const petMatch = !specialFilters.petFriendly || e.meta?.petFriendly;
+                return barrierMatch && petMatch;
+            })
+            .forEach(festival => {
             const el = document.createElement('div');
             const root = createRoot(el);
             rootsRef.current.push(root);
@@ -305,7 +328,13 @@ function MapContent() {
                         });
                         setSheetHeight(50);
                         setClickedLatLng(null);
-                        mapRef.current.panTo(new window.naver.maps.LatLng(festival.lat, festival.lng));
+                        
+                        const map = mapRef.current;
+                        const proj = map.getProjection();
+                        const targetPixel = proj.fromCoordToOffset(new window.naver.maps.LatLng(festival.lat, festival.lng));
+                        targetPixel.y -= window.innerHeight * 0.2; 
+                        const correctedCenter = proj.fromOffsetToCoord(targetPixel);
+                        map.panTo(correctedCenter);
                     }}
                 />
             );
@@ -342,20 +371,43 @@ function MapContent() {
                         categories={CATEGORIES}
                         selectedCategory={selectedCategory}
                         onCategorySelect={setSelectedCategory}
+                        specialFilters={specialFilters}
+                        onSpecialFilterToggle={(type) => setSpecialFilters(prev => ({ ...prev, [type]: !prev[type] }))}
                         isResultOpen={isResultOpen}
                         searchResults={searchResults}
                         onSelectPlace={handleSelectPlace}
                     />
+
+                    {/* My Location Button - Positioned below categories */}
+                    <div className="flex justify-start pt-2">
+                        <button 
+                            onClick={handleMyLocation}
+                            className="p-2.5 bg-nav-bg/90 backdrop-blur-3xl rounded-2xl shadow-xl border border-border text-secondary hover:scale-110 active:scale-95 transition-all pointer-events-auto"
+                        >
+                            <LocateFixed size={18} />
+                        </button>
+                    </div>
                 </div>
             </div>
 
             <div className="relative flex-1 w-full" style={{ minHeight: 'calc(100dvh - 15vh)' }}>
                 <div id="map-container" className="absolute inset-0 w-full h-full bg-gray-100" />
+                
             </div>
 
             <MapBottomSheet 
                 sheetHeight={sheetHeight}
-                markers={markers}
+                markers={markers.filter(m => {
+                    const catMatch = selectedCategory === "전체" || m.category === selectedCategory;
+                    const barrierMatch = !specialFilters.barrierFree || (m as any).meta?.barrierFree;
+                    const petMatch = !specialFilters.petFriendly || (m as any).meta?.petFriendly;
+                    return catMatch && barrierMatch && petMatch;
+                })}
+                officialEvents={officialEvents.filter(e => {
+                    const barrierMatch = !specialFilters.barrierFree || e.meta?.barrierFree;
+                    const petMatch = !specialFilters.petFriendly || e.meta?.petFriendly;
+                    return barrierMatch && petMatch;
+                })}
                 expandedCardId={expandedCardId}
                 onPointerDown={handlePointerDown}
                 onPointerMove={handlePointerMove}
@@ -363,7 +415,14 @@ function MapContent() {
                 onCardClick={(id, lat, lng) => {
                     setExpandedCardId(expandedCardId === id ? null : id);
                     if (expandedCardId !== id && mapRef.current) {
-                        mapRef.current.panTo(new window.naver.maps.LatLng(lat, lng));
+                        const map = mapRef.current;
+                        const proj = map.getProjection();
+                        const targetPixel = proj.fromCoordToOffset(new window.naver.maps.LatLng(lat, lng));
+                        // 이동하려는 타겟을 화면 중심보다 20% 위로 올려 바텀시트에 안 가려지도록 보정
+                        targetPixel.y -= window.innerHeight * 0.2; 
+                        const correctedCenter = proj.fromOffsetToCoord(targetPixel);
+                        
+                        map.panTo(correctedCenter);
                         setSheetHeight(50);
                         setClickedLatLng(null);
                     }

@@ -12,19 +12,27 @@ interface StatusMarkerProps {
 }
 
 export function StatusMarker({ status, isRequest, isSelected }: StatusMarkerProps) {
-    const statusColorClass = isRequest ? 'bg-orange-500' : status === '여유' ? 'bg-green-500' : status === '보통' ? 'bg-blue-500' : 'bg-red-500';
-    
+    // 상태별 컬러 테마 (Vibrant & Premium)
+    const theme = isRequest 
+        ? { shadow: 'shadow-orange-500/30', bg: 'bg-orange-500', border: 'border-orange-400/50' }
+        : status === '여유' 
+            ? { shadow: 'shadow-emerald-500/30', bg: 'bg-emerald-500', border: 'border-emerald-400/50' }
+            : status === '보통'
+                ? { shadow: 'shadow-blue-500/30', bg: 'bg-blue-500', border: 'border-blue-400/50' }
+                : { shadow: 'shadow-rose-500/30', bg: 'bg-rose-500', border: 'border-rose-400/50' };
+
     return (
         <motion.div 
             initial={{ scale: 0.8, opacity: 0 }}
             animate={{ scale: isSelected ? 1.25 : 1, opacity: 1 }}
-            className={`flex flex-col items-center transform -translate-x-1/2 -translate-y-full cursor-pointer transition-all duration-300 ${isSelected ? 'z-50' : 'hover:scale-110 z-10'}`}
+            className={`flex flex-col items-center transform -translate-x-1/2 -translate-y-[120%] cursor-pointer transition-all duration-300 ${isSelected ? 'z-50' : 'hover:scale-110 z-10'}`}
         >
-            <div className="px-3 py-1.5 ring-1 ring-black/5 shadow-2xl rounded-2xl text-white text-[12px] font-black flex items-center bg-white/90 backdrop-blur-xl border border-white/40">
-                <div className={`w-2.5 h-2.5 rounded-full mr-2 ${statusColorClass} ${isSelected ? 'animate-ping' : 'animate-pulse'} shadow-sm`}></div>
-                <span className="text-foreground font-black">{isRequest ? '요청' : status}</span>
+            <div className={`px-2.5 py-1.5 ${theme.bg} ${theme.shadow} ${theme.border} rounded-2xl text-white text-[11px] font-black flex items-center border shadow-xl backdrop-blur-sm`}>
+                <div className={`w-1.5 h-1.5 rounded-full mr-1.5 bg-white ${isSelected ? 'animate-ping' : ''} shadow-sm`}></div>
+                <span className="tracking-tight">{isRequest ? '상황요청' : status}</span>
             </div>
-            <div className="w-2 h-2 bg-white/90 rotate-45 -translate-y-1 shadow-sm border-r border-b border-black/5"></div>
+            {/* 꼬리표 (Tail) */}
+            <div className={`w-2 h-2 ${theme.bg} rotate-45 -translate-y-1 shadow-sm border-r border-b ${theme.border}`}></div>
         </motion.div>
     );
 }

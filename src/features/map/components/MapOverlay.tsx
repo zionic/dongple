@@ -13,6 +13,8 @@ interface MapOverlayProps {
     categories: Category[];
     selectedCategory: string;
     onCategorySelect: (id: string) => void;
+    specialFilters: { barrierFree: boolean, petFriendly: boolean };
+    onSpecialFilterToggle: (type: 'barrierFree' | 'petFriendly') => void;
     isResultOpen: boolean;
     searchResults: any[];
     onSelectPlace: (place: any) => void;
@@ -22,12 +24,43 @@ export default function MapOverlay({
     categories,
     selectedCategory,
     onCategorySelect,
+    specialFilters,
+    onSpecialFilterToggle,
     isResultOpen,
     searchResults,
     onSelectPlace
 }: MapOverlayProps) {
     return (
         <div className="flex flex-col space-y-3">
+            {/* Special Filters (Barrier-free, Pet-friendly) */}
+            <motion.div 
+                initial={{ opacity: 0, x: -10 }} 
+                animate={{ opacity: 1, x: 0 }} 
+                className="flex items-center space-x-2 pointer-events-auto"
+            >
+                <button
+                    onClick={() => onSpecialFilterToggle('barrierFree')}
+                    className={`px-3 py-1.5 rounded-full text-[11px] font-black transition-all border flex items-center space-x-1.5 ${
+                        specialFilters.barrierFree
+                        ? "bg-blue-500 text-white border-blue-500 shadow-md shadow-blue-500/20"
+                        : "bg-white/50 backdrop-blur-md text-blue-500/60 border-blue-100 hover:border-blue-200"
+                    }`}
+                >
+                    <span>♿ 편한 접근</span>
+                </button>
+                <button
+                    onClick={() => onSpecialFilterToggle('petFriendly')}
+                    className={`px-3 py-1.5 rounded-full text-[11px] font-black transition-all border flex items-center space-x-1.5 ${
+                        specialFilters.petFriendly
+                        ? "bg-green-500 text-white border-green-500 shadow-md shadow-green-500/20"
+                        : "bg-white/50 backdrop-blur-md text-green-500/60 border-green-100 hover:border-green-200"
+                    }`}
+                >
+                    <span>🐶 반려동물 동반</span>
+                </button>
+                <div className="w-[1px] h-4 bg-border mx-1" />
+            </motion.div>
+
             {/* Category Filter Chips */}
             <motion.div 
                 initial={{ opacity: 0, y: -10 }} 
@@ -65,7 +98,12 @@ export default function MapOverlay({
                                 onClick={() => onSelectPlace(place)} 
                                 className="p-4 hover:bg-foreground/5 rounded-2xl cursor-pointer"
                             >
-                                <h5 className="font-black text-[15px] text-foreground mb-1" dangerouslySetInnerHTML={{ __html: place.title }} />
+                                <div className="flex justify-between items-start mb-1 gap-2">
+                                    <h5 className="font-black text-[15px] text-foreground flex-1" dangerouslySetInnerHTML={{ __html: place.title }} />
+                                    {place.distance && (
+                                        <span className="text-[11px] font-black text-secondary shrink-0 pt-0.5">{place.distance}</span>
+                                    )}
+                                </div>
                                 <p className="text-[12px] text-foreground/40 font-bold">{place.roadAddress || place.address}</p>
                             </div>
                         ))}

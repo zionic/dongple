@@ -20,6 +20,8 @@ export interface PlaceData {
     address: string;
     distance: string;
     category: string;
+    lat?: number;
+    lng?: number;
 }
 
 export interface AddressResult {
@@ -91,12 +93,25 @@ export async function getAddressFromCoords(lat: number, lng: number): Promise<Ad
  * 상호/장소 키워드로 검색 (POI Search)
  * /api/search 프록시를 통해 네이버 지역 검색 API 호출
  */
-export async function searchPlaces(query: string): Promise<any[]> {
+export async function searchPlaces(query: string, lat?: number, lng?: number): Promise<any[]> {
     try {
         const response = await fetch(`/api/search?query=${encodeURIComponent(query)}`);
         if (!response.ok) throw new Error('Search API failed');
         const data = await response.json();
-        return data.items || [];
+        const items = data.items || [];
+
+        if (lat !== undefined && lng !== undefined && typeof window !== 'undefined' && window.naver?.maps?.TransCoord) {
+            return items.map((item: any) => {
+                const tm128 = new window.naver.maps.Point(parseInt(item.mapx), parseInt(item.mapy));
+                const latlng = window.naver.maps.TransCoord.fromTM128ToLatLng(tm128);
+                const d = getDistance(lat, lng, latlng.y, latlng.x);
+                return {
+                    ...item,
+                    distance: formatDistance(d)
+                };
+            });
+        }
+        return items;
     } catch (err) {
         console.error('POI 검색 실패:', err);
         return [];
@@ -141,6 +156,30 @@ export async function getCoordsFromAddress(address: string): Promise<{ lat: numb
 }
 
 /**
+ * 하버사인 공식을 이용한 두 좌표 사이의 거리(m) 계산
+ */
+export function getDistance(lat1: number, lng1: number, lat2: number, lng2: number): number {
+    const R = 6371e3; // 지구 반지름 (m)
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLng = (lng2 - lng1) * Math.PI / 180;
+    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+              Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+              Math.sin(dLng / 2) * Math.sin(dLng / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c; // 미터 단위
+}
+
+/**
+ * 거리 포맷팅 유틸리티 (m -> m/km)
+ */
+export function formatDistance(distanceInMeters: number): string {
+    if (distanceInMeters < 1000) {
+        return `${Math.round(distanceInMeters)}m`;
+    }
+    return `${(distanceInMeters / 1000).toFixed(1)}km`;
+}
+
+/**
  * 공공 데이터 API 연동: 날씨 정보 가져오기
  */
 export async function getVillageWeather(lat: number, lng: number): Promise<WeatherData> {
@@ -172,10 +211,20 @@ export async function getNearbyPlaces(lat: number, lng: number, keyword: string)
         
         return (data.items || []).map((item: any) => {
             const cleanName = item.title.replace(/<[^>]*>?/gm, '');
+            
+            // 네이버 검색 API의 mapx, mapy(TM128)를 위경도로 변환하여 거리 계산 (브라우저 환경에서만 가능)
+            let distanceStr = "";
+            if (typeof window !== 'undefined' && window.naver?.maps?.TransCoord) {
+                const tm128 = new window.naver.maps.Point(parseInt(item.mapx), parseInt(item.mapy));
+                const latlng = window.naver.maps.TransCoord.fromTM128ToLatLng(tm128);
+                const d = getDistance(lat, lng, latlng.y, latlng.x);
+                distanceStr = formatDistance(d);
+            }
+
             return {
                 name: cleanName,
                 address: item.roadAddress || item.address,
-                distance: "", 
+                distance: distanceStr, 
                 category: item.category
             };
         });
