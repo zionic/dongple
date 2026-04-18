@@ -30,7 +30,29 @@ export async function fetchLiveStatus() {
         .order("created_at", { ascending: false });
 
     if (error) throw error;
-    return data as LiveStatus[];
+    
+    // 장소 기준 최신순 그룹화 및 history 병합
+    const items = data as LiveStatus[];
+    const grouped = new Map<string, any>();
+
+    for (const item of items) {
+        if (!grouped.has(item.place_name)) {
+            grouped.set(item.place_name, {
+                ...item,
+                history: []
+            });
+        }
+        
+        const root = grouped.get(item.place_name);
+        root.history.push({
+            status: item.status,
+            status_color: item.status_color,
+            text: item.message || (item.is_request ? "상황 공유를 요청했습니다." : "새로운 상태를 업데이트했습니다."),
+            time: new Date(item.created_at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })
+        });
+    }
+
+    return Array.from(grouped.values());
 }
 
 /**
@@ -69,15 +91,6 @@ export async function verifyStatusWithTrust(statusId: string, userId: string) {
         });
 
         if (rpcError) throw rpcError;
-
-        if (isSuccess) {
-            // 2. 신뢰도 보정 (+0.05) - 단순 RPC가 카운트만 올린다면 여기서 추가 업데이트
-            // 실제 운영 환경에서는 별도의 RPC나 트리거로 처리하는 것이 안전함
-            await supabase.rpc('increment_trust_score', {
-                p_status_id: statusId,
-                p_amount: 0.05
-            });
-        }
 
         return isSuccess;
     } catch (err) {
