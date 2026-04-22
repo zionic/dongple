@@ -8,6 +8,14 @@ const nextConfig = {
     // Vercel 배포 시 TypeScript 에러 무시
     ignoreBuildErrors: true,
   },
+  images: {
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'i.pravatar.cc',
+      },
+    ],
+  },
   async redirects() {
     return [
       {

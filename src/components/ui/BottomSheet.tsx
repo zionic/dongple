@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef, useImperativeHandle, forwardRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, BadgeCheck, CheckCircle2, ShieldCheck, User as UserIcon, Camera, AlertTriangle, Heart, Flag } from "lucide-react";
+import { X, BadgeCheck, CheckCircle2, ShieldCheck, User as UserIcon, Camera, AlertTriangle, Heart, Flag, MapPin, Activity } from "lucide-react";
 import { reportContent, ReportReason } from "@/services/moderationService";
 
 

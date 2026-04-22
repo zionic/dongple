@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabase';
-import { FestivalItem } from './collector';
+import { TouristAttractionItem } from './collector';
 
 /**
  * 카테고리 매핑 로직
@@ -19,7 +19,7 @@ export const CATEGORY_MAP: Record<string, string> = {
 /**
  * Geofencing 기반 위치 매칭 및 신뢰도 산정 / 신규 등록
  */
-export async function classifyAndLinkEvent(item: FestivalItem) {
+export async function classifyAndLinkEvent(item: any) { // Mapped item을 받으므로 any 처리 또는 타입 정의 필요
   const { mapx, mapy, contentid, title, addr1, eventstartdate, eventenddate, firstimage } = item;
   const lat = parseFloat(mapy);
   const lng = parseFloat(mapx);

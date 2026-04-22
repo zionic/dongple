@@ -2,12 +2,12 @@
  * TourAPI 4.0 일간 데이터 동기화 배치 스크립트
  * 실행: npx ts-node -r dotenv/config scripts/sync-tourapi.ts
  */
-import { collectFestivals } from '../src/services/tourapi/collector';
+import { collectTouristAttractions } from '../src/services/tourapi/collector';
 import { classifyAndLinkEvent } from '../src/services/tourapi/classifier';
 import { sendSlackNotification } from '../src/services/tourapi/notifier';
 
 async function main() {
-  console.log('--- TourAPI Sync Start ---');
+  console.log('--- Standard API Sync Start ---');
   const startTime = Date.now();
   
   let stats = {
@@ -18,8 +18,8 @@ async function main() {
   };
 
   try {
-    // 1. 축제 정보 수집
-    const items = await collectFestivals();
+    // 1. 관광지 정보 수집
+    const items = await collectTouristAttractions();
     stats.total = items.length;
     
     if (items.length > 0) {
@@ -58,7 +58,7 @@ async function main() {
     process.exit(1);
   }
 
-  console.log('--- TourAPI Sync Finished ---');
+  console.log('--- Standard API Sync Finished ---');
 }
 
 main();

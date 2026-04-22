@@ -54,9 +54,17 @@ export async function fetchWithCache<T>(
   try {
     console.log(`[API Call] ${apiEndpoint}`);
     const response = await tourApiClient.get(apiEndpoint, { params });
-    const data = response.data?.response?.body?.items?.item;
+    
+    // Standard API와 TourAPI의 응답 구조 차이 대응
+    const body = response.data?.response?.body;
+    let data = body?.items?.item || body?.items;
     
     if (!data) return null;
+
+    // 만약 단일 객체라면 배열로 변환
+    if (!Array.isArray(data)) {
+        data = [data];
+    }
 
     // 3. Redis 캐시 적재
     if (redis) {

@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Zap, MapPin, CheckCircle2, Plus, HelpCircle, ArrowUpRight } from "lucide-react";
 import { useUIStore } from "@/lib/store/uiStore";
-import { fetchLiveStatus, subscribeLiveUpdates, LiveStatus } from "@/services/statusService";
+import { fetchLiveStatus, subscribeLiveUpdates, verifyStatusWithTrust, LiveStatus } from "@/services/statusService";
 
 export default function LiveBoardTickerv2() {
     const [liveUpdates, setLiveUpdates] = useState<LiveStatus[]>([]);

@@ -49,6 +49,7 @@ export async function getAddressFromCoords(lat: number, lng: number): Promise<Ad
                 return;
             }
 
+            try {
                 const results = response.v2.results;
                 let fullAddress = response.v2.address?.roadAddress || response.v2.address?.jibunAddress || "";
                 let regionName = "";
