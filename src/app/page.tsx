@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { motion } from "framer-motion";
 import Link from "next/link";
+import { TrustBadge } from "@/lib/trust-utils";
 
 // V2 전용 컴포넌트 임포트
 import HeroSection from "@/components/dashboard/v2/HeroSection";
@@ -154,13 +155,6 @@ export default function Home() {
 }
 
 function FeedItem({ post, mode, onClick }: { post: Post, mode: "grid" | "list", onClick: () => void }) {
-    const getTrustLevel = (score: number) => {
-        if (score >= 0.8) return { label: "신용 높음", color: "text-blue-500 bg-blue-500/10", icon: <ShieldCheck size={10}/> };
-        if (score >= 0.5) return { label: "보통 이웃", color: "text-green-500 bg-green-500/10", icon: <Star size={10}/> };
-        return { label: "확인 필요", color: "text-orange-500 bg-orange-500/10", icon: <Activity size={10}/> };
-    };
-    const trust = getTrustLevel(post.score || 0.5);
-
     return (
         <motion.div
             whileHover={{ y: -4 }}
@@ -168,10 +162,7 @@ function FeedItem({ post, mode, onClick }: { post: Post, mode: "grid" | "list", 
             onClick={onClick}
         >
             <div className="flex items-center justify-between mb-3">
-                <div className={`flex items-center px-2 py-0.5 rounded-full text-[9px] font-black ${trust.color}`}>
-                    {trust.icon}
-                    <span className="ml-1">{trust.label}</span>
-                </div>
+                <TrustBadge score={post.score || 0.5} />
                 <span className="text-[10px] text-foreground/40 font-bold">
                     {new Date(post.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                 </span>

@@ -282,6 +282,7 @@ function MapContent() {
                     status={m.status} 
                     isRequest={m.is_request} 
                     isSelected={isSelected} 
+                    trustScore={m.trust_score}
                 />
             );
 

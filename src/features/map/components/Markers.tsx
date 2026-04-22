@@ -9,9 +9,10 @@ interface StatusMarkerProps {
     status: string;
     isRequest: boolean;
     isSelected: boolean;
+    trustScore?: number;
 }
 
-export function StatusMarker({ status, isRequest, isSelected }: StatusMarkerProps) {
+export function StatusMarker({ status, isRequest, isSelected, trustScore = 0.5 }: StatusMarkerProps) {
     // 상태별 컬러 테마 (Vibrant & Premium)
     const theme = isRequest 
         ? { shadow: 'shadow-orange-500/30', bg: 'bg-orange-500', border: 'border-orange-400/50' }
@@ -21,15 +22,18 @@ export function StatusMarker({ status, isRequest, isSelected }: StatusMarkerProp
                 ? { shadow: 'shadow-blue-500/30', bg: 'bg-blue-500', border: 'border-blue-400/50' }
                 : { shadow: 'shadow-rose-500/30', bg: 'bg-rose-500', border: 'border-rose-400/50' };
 
+    const isHighTrust = trustScore >= 0.8;
+
     return (
         <motion.div 
             initial={{ scale: 0.8, opacity: 0 }}
             animate={{ scale: isSelected ? 1.25 : 1, opacity: 1 }}
             className={`flex flex-col items-center transform -translate-x-1/2 -translate-y-[120%] cursor-pointer transition-all duration-300 ${isSelected ? 'z-50' : 'hover:scale-110 z-10'}`}
         >
-            <div className={`px-2.5 py-1.5 ${theme.bg} ${theme.shadow} ${theme.border} rounded-2xl text-white text-[11px] font-black flex items-center border shadow-xl backdrop-blur-sm`}>
-                <div className={`w-1.5 h-1.5 rounded-full mr-1.5 bg-white ${isSelected ? 'animate-ping' : ''} shadow-sm`}></div>
+            <div className={`px-2.5 py-1.5 ${theme.bg} ${theme.shadow} ${theme.border} rounded-2xl text-white text-[11px] font-black flex items-center border shadow-xl backdrop-blur-sm ${isHighTrust ? 'ring-2 ring-white/50 ring-offset-2 ring-offset-transparent' : ''}`}>
+                <div className={`w-1.5 h-1.5 rounded-full mr-1.5 bg-white ${isSelected || isHighTrust ? 'animate-pulse' : ''} shadow-sm`}></div>
                 <span className="tracking-tight">{isRequest ? '상황요청' : status}</span>
+                {isHighTrust && <div className="ml-1 opacity-80">🛡️</div>}
             </div>
             {/* 꼬리표 (Tail) */}
             <div className={`w-2 h-2 ${theme.bg} rotate-45 -translate-y-1 shadow-sm border-r border-b ${theme.border}`}></div>

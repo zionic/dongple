@@ -1,10 +1,13 @@
 "use client";
 
+import React from "react";
 import { motion } from "framer-motion";
-import { MapPin, HelpCircle, Plus, Navigation2 } from "lucide-react";
-import { LiveStatus } from "@/services/statusService";
+import { MapPin, HelpCircle, Plus, Navigation2, ShieldCheck, Check } from "lucide-react";
+import { LiveStatus, verifyStatusWithTrust } from "@/services/statusService";
 import { useLocationStore } from "@/lib/store/locationStore";
 import { getDistance, formatDistance } from "@/services/api";
+import { TrustBadge } from "@/lib/trust-utils";
+import { getPersistentUserId } from "@/lib/auth-utils";
 
 interface MapBottomSheetProps {
     sheetHeight: number;
@@ -30,6 +33,19 @@ export default function MapBottomSheet({
     onOpenCreate
 }: MapBottomSheetProps) {
     const { latitude: userLat, longitude: userLng } = useLocationStore();
+    const [verifiedIds, setVerifiedIds] = React.useState<Set<string>>(new Set());
+
+    const handleVerify = async (e: React.MouseEvent, cardId: string) => {
+        e.stopPropagation();
+        if (verifiedIds.has(cardId)) return;
+
+        const userId = getPersistentUserId();
+        const success = await verifyStatusWithTrust(cardId, userId);
+        
+        if (success) {
+            setVerifiedIds(prev => new Set(prev).add(cardId));
+        }
+    };
 
     // 소식들과 공식 행사를 통합하고 거리 계산 및 정렬 추가
     const allItems = [
@@ -105,6 +121,9 @@ export default function MapBottomSheet({
                                     {card.meta?.petFriendly && (
                                         <span className="bg-green-50 text-green-500 px-2 py-0.5 rounded-full text-[9px] font-black">🐶 반려동물 동반</span>
                                     )}
+
+                                    {/* 신뢰도 뱃지 추가 */}
+                                    <TrustBadge score={card.score || 0.5} isOfficial={card.isOfficial} />
                                 </div>
                                 <div className="flex items-center gap-2 mb-2">
                                     <h4 className="font-black text-foreground text-[18px] leading-tight-none">{card.place_name}</h4>
@@ -157,19 +176,43 @@ export default function MapBottomSheet({
                                     </a>
                                 </div>
                                 {!card.isOfficial && (
-                                    <div className="flex space-x-2">
-                                        <button 
-                                            onClick={(e) => { e.stopPropagation(); onOpenCreate("request"); }} 
-                                            className="flex-1 py-3.5 bg-foreground/5 text-foreground/60 rounded-2xl font-black text-[13px]"
+                                    <div className="flex flex-col space-y-2">
+                                        {/* 신뢰도 인증 버튼 (나도 여기에요) */}
+                                        <button
+                                            onClick={(e) => handleVerify(e, card.id)}
+                                            disabled={verifiedIds.has(card.id)}
+                                            className={`w-full py-4 rounded-2xl font-black text-[14px] flex items-center justify-center gap-2 transition-all shadow-xl ${
+                                                verifiedIds.has(card.id)
+                                                ? "bg-blue-500 text-white shadow-blue-500/20"
+                                                : "bg-nav-bg border border-border text-foreground hover:scale-[1.02] active:scale-95"
+                                            }`}
                                         >
-                                            정보 업데이트
+                                            {verifiedIds.has(card.id) ? (
+                                                <>
+                                                    <Check size={18} />
+                                                    인증 완료! (신뢰도 기여됨)
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <ShieldCheck size={18} className="text-blue-500" />
+                                                    나도 여기에요 (정보 인증)
+                                                </>
+                                            )}
                                         </button>
-                                        <button 
-                                            onClick={(e) => { e.stopPropagation(); onOpenCreate("share"); }} 
-                                            className="flex-1 py-3.5 bg-secondary text-white rounded-2xl font-black text-[13px] shadow-lg shadow-secondary/20"
-                                        >
-                                            여기에 제보
-                                        </button>
+                                        <div className="flex space-x-2">
+                                            <button 
+                                                onClick={(e) => { e.stopPropagation(); onOpenCreate("request"); }} 
+                                                className="flex-1 py-3.5 bg-foreground/5 text-foreground/60 rounded-2xl font-black text-[13px]"
+                                            >
+                                                정보 업데이트
+                                            </button>
+                                            <button 
+                                                onClick={(e) => { e.stopPropagation(); onOpenCreate("share"); }} 
+                                                className="flex-1 py-3.5 bg-secondary text-white rounded-2xl font-black text-[13px] shadow-lg shadow-secondary/20"
+                                            >
+                                                여기에 제보
+                                            </button>
+                                        </div>
                                     </div>
                                 )}
                             </motion.div>
