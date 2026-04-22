@@ -9,6 +9,8 @@ import {
 import { motion } from "framer-motion";
 import Link from "next/link";
 
+import Image from "next/image";
+
 // V2 전용 컴포넌트 임포트
 import HeroSection from "@/components/dashboard/v2/HeroSection";
 import QuestionSummaryV2 from "@/components/dashboard/v2/QuestionSummaryV2";
@@ -79,8 +81,13 @@ export default function Home() {
                     </div>
                     <div className="flex -space-x-2">
                         {[1,2,3,4].map(i => (
-                            <div key={i} className="w-8 h-8 rounded-full border-2 border-background bg-foreground/10 overflow-hidden">
-                                <img src={`https://i.pravatar.cc/100?img=${i+10}`} alt="user" className="w-full h-full object-cover" />
+                            <div key={i} className="relative w-8 h-8 rounded-full border-2 border-background bg-foreground/10 overflow-hidden">
+                                <Image 
+                                    src={`https://i.pravatar.cc/100?img=${i+10}`} 
+                                    alt={`동네 이웃 ${i}`}
+                                    fill
+                                    className="object-cover" 
+                                />
                             </div>
                         ))}
                         <div className="w-8 h-8 rounded-full border-2 border-background bg-secondary flex items-center justify-center text-[10px] font-black text-white">+</div>
@@ -95,14 +102,14 @@ export default function Home() {
                 </div>
                 <div className="grid grid-cols-4 gap-4">
                     {categories.map((cat, i) => (
-                        <Link key={i} href={cat.label === "전체" ? "/news" : `/news?cat=${cat.label}`}>
+                        <Link key={i} href={cat.label === "전체" ? "/news" : `/news?cat=${cat.label}`} aria-label={`${cat.label} 소식 보기`}>
                             <motion.button
                                 whileHover={{ scale: 1.05 }}
                                 whileTap={{ scale: 0.95 }}
-                                className="flex flex-col items-center space-y-2 w-full"
+                                className="w-full flex flex-col items-center space-y-2"
                             >
-                                <div className={`w-14 h-14 ${cat.color} rounded-[20px] flex items-center justify-center shadow-sm border border-white dark:border-white/10`}>
-                                    <cat.icon size={26} />
+                                <div className={`w-14 h-14 rounded-2xl ${cat.color} flex items-center justify-center shadow-lg shadow-current/10`}>
+                                    <cat.icon size={24} />
                                 </div>
                                 <span className="text-[11px] font-bold text-foreground/60">{cat.label}</span>
                             </motion.button>

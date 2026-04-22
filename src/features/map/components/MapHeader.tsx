@@ -35,14 +35,14 @@ export default function MapHeader({
             <div className="flex-1 relative group">
                 <input 
                     type="text" 
-                    placeholder="어디로 갈까요? 장소나 주소 검색..." 
+                    placeholder="어디로 갈까요?" 
                     value={searchQuery}
                     onChange={(e) => onSearchChange(e.target.value)}
                     onFocus={onFocus}
                     onKeyDown={(e) => e.key === 'Enter' && onSearchSubmit()}
-                    className="w-full h-14 pl-12 pr-12 bg-nav-bg backdrop-blur-xl border border-border rounded-[24px] text-[15px] font-black text-foreground shadow-2xl transition-all outline-none placeholder:text-foreground/30"
+                    className="w-full h-14 pl-14 pr-12 bg-nav-bg backdrop-blur-xl border border-border rounded-[24px] text-[15px] font-bold text-foreground shadow-2xl transition-all outline-none placeholder:text-foreground/30"
                 />
-                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-foreground/30" size={20} />
+                <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-foreground/30" size={20} />
                 {searchQuery && (
                     <button 
                         onClick={onClear} 
