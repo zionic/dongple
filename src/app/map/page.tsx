@@ -13,7 +13,7 @@ import { useLocationStore } from "@/lib/store/locationStore";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
     Home, Trees, Dumbbell, Coffee, ShoppingBag, Store, ParkingCircle, HeartPulse, Building2,
-    LocateFixed
+    LocateFixed, Accessibility, PawPrint
 } from "lucide-react";
 
 // New Components
@@ -372,18 +372,39 @@ function MapContent() {
                         categories={CATEGORIES}
                         selectedCategory={selectedCategory}
                         onCategorySelect={setSelectedCategory}
-                        specialFilters={specialFilters}
-                        onSpecialFilterToggle={(type) => setSpecialFilters(prev => ({ ...prev, [type]: !prev[type] }))}
                         isResultOpen={isResultOpen}
                         searchResults={searchResults}
                         onSelectPlace={handleSelectPlace}
                     />
 
-                    {/* My Location Button - Positioned below categories */}
-                    <div className="flex justify-start pt-2">
+                    {/* My Location & Special Filters - Stacked on the left */}
+                    <div className="flex flex-col items-start space-y-2 pt-2 pointer-events-none">
+                        <button 
+                            onClick={() => setSpecialFilters(prev => ({ ...prev, barrierFree: !prev.barrierFree }))}
+                            className={`p-2.5 backdrop-blur-3xl rounded-2xl shadow-xl border transition-all pointer-events-auto hover:scale-110 active:scale-95 ${
+                                specialFilters.barrierFree 
+                                ? "bg-blue-500 text-white border-blue-400" 
+                                : "bg-nav-bg/90 text-blue-500/70 border-border"
+                            }`}
+                            title="접근편한"
+                        >
+                            <Accessibility size={18} />
+                        </button>
+                        <button 
+                            onClick={() => setSpecialFilters(prev => ({ ...prev, petFriendly: !prev.petFriendly }))}
+                            className={`p-2.5 backdrop-blur-3xl rounded-2xl shadow-xl border transition-all pointer-events-auto hover:scale-110 active:scale-95 ${
+                                specialFilters.petFriendly 
+                                ? "bg-green-500 text-white border-green-400" 
+                                : "bg-nav-bg/90 text-green-500/70 border-border"
+                            }`}
+                            title="반려동물"
+                        >
+                            <PawPrint size={18} />
+                        </button>
                         <button 
                             onClick={handleMyLocation}
                             className="p-2.5 bg-nav-bg/90 backdrop-blur-3xl rounded-2xl shadow-xl border border-border text-secondary hover:scale-110 active:scale-95 transition-all pointer-events-auto"
+                            title="현재위치"
                         >
                             <LocateFixed size={18} />
                         </button>

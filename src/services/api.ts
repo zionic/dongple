@@ -49,37 +49,42 @@ export async function getAddressFromCoords(lat: number, lng: number): Promise<Ad
                 return;
             }
 
-            try {
-                const addrV2 = response.v2.address;
                 const results = response.v2.results;
-                let fullAddress = "";
+                let fullAddress = response.v2.address?.roadAddress || response.v2.address?.jibunAddress || "";
                 let regionName = "";
 
-                if (addrV2 && (addrV2.roadAddress || addrV2.jibunAddress)) {
-                    fullAddress = addrV2.roadAddress || addrV2.jibunAddress;
-                }
-
                 if (results && results.length > 0) {
+                    // 첫 번째 결과에서 지역 정보 추출 시도
                     const region = results[0].region;
-                    // 수원시 정자동 포맷 생성 (area2의 '시' 부분 + area3)
-                    const city = region.area2?.name?.split(' ')[0] || ""; // '수원시'
-                    const dong = region.area3?.name || ""; // '정자동'
-                    regionName = `${city} ${dong}`.trim();
                     
+                    // 1순위: area3(동)이 있으면 area2(시/구)의 앞부분과 조합
+                    if (region.area3?.name) {
+                        const city = region.area2?.name?.split(' ')[0] || "";
+                        regionName = `${city} ${region.area3.name}`.trim();
+                    } 
+                    // 2순위: area3이 없으면 area2 전체 사용
+                    else if (region.area2?.name) {
+                        regionName = region.area2.name;
+                    }
+                    // 3순위: area1(도/광역시) 사용
+                    else {
+                        regionName = region.area1?.name || "";
+                    }
+
+                    // 전체 주소가 없는 경우 구성을 시도
                     if (!fullAddress) {
-                        const parts = [
+                        fullAddress = [
                             region.area1?.name,
                             region.area2?.name,
                             region.area3?.name,
                             region.area4?.name
-                        ].filter(Boolean);
-                        fullAddress = parts.join(' ');
+                        ].filter(Boolean).join(' ');
                     }
                 }
 
                 resolve({
                     fullAddress: fullAddress || "주소 정보 없음",
-                    regionName: regionName || "알 수 없는 지역"
+                    regionName: regionName || "위치 정보 없음"
                 });
             } catch (err) {
                 console.error('주소 파싱 에러:', err);

@@ -21,9 +21,24 @@ const CATEGORIES = [
 ];
 
 const statusOptions = [
-    { label: "여유", color: "bg-green-100 text-green-700 hover:bg-green-200 border-green-200", badgeColor: "text-green-500" },
-    { label: "보통", color: "bg-blue-100 text-blue-700 hover:bg-blue-200 border-blue-200", badgeColor: "text-blue-500" },
-    { label: "혼잡", color: "bg-red-100 text-red-700 hover:bg-red-200 border-red-200", badgeColor: "text-red-500" }
+    { 
+        label: "여유", 
+        color: "bg-green-50 text-green-700 border-green-100", 
+        activeColor: "bg-green-500 text-white border-green-500 shadow-lg shadow-green-500/20",
+        badgeColor: "text-green-500" 
+    },
+    { 
+        label: "보통", 
+        color: "bg-blue-50 text-blue-700 border-blue-100", 
+        activeColor: "bg-blue-500 text-white border-blue-500 shadow-lg shadow-blue-500/20",
+        badgeColor: "text-blue-500" 
+    },
+    { 
+        label: "혼잡", 
+        color: "bg-red-50 text-red-700 border-red-100", 
+        activeColor: "bg-red-500 text-white border-red-500 shadow-lg shadow-red-500/20",
+        badgeColor: "text-red-500" 
+    }
 ];
 
 import { useLocationStore } from "@/lib/store/locationStore";
@@ -194,10 +209,11 @@ export default function LiveStatusCreateForm({
                             <button
                                 key={option.label}
                                 onClick={() => setSelectedStatus(option.label)}
-                                className={`flex-1 py-3 text-sm font-bold rounded-xl border transition-all ${selectedStatus === option.label
-                                    ? `${option.color} ring-2 ring-offset-1 ${option.label === '여유' ? 'ring-green-300' : option.label === '보통' ? 'ring-blue-300' : 'ring-red-300'}`
-                                    : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'
-                                    }`}
+                                className={`flex-1 py-4 text-sm font-black rounded-2xl border transition-all duration-300 ${
+                                    selectedStatus === option.label
+                                        ? option.activeColor
+                                        : `${option.color} opacity-40 hover:opacity-100`
+                                }`}
                             >
                                 {option.label}
                             </button>

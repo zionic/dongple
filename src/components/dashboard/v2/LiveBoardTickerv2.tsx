@@ -71,6 +71,29 @@ export default function LiveBoardTickerv2() {
 
     const theme = getStatusTheme(current.status, current.is_request);
 
+    const [isVerifying, setIsVerifying] = useState(false);
+    const [verifiedIds, setVerifiedIds] = useState<Set<string>>(new Set());
+
+    const handleVerify = async (e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (isVerifying || verifiedIds.has(current.id)) return;
+        
+        setIsVerifying(true);
+        try {
+            const tempId = localStorage.getItem('dongple_temp_id') || `user-${Math.random().toString(36).substr(2, 9)}`;
+            if (!localStorage.getItem('dongple_temp_id')) localStorage.setItem('dongple_temp_id', tempId);
+
+            const success = await verifyStatusWithTrust(current.id, tempId);
+            if (success) {
+                setVerifiedIds(prev => new Set(prev).add(current.id));
+            }
+        } catch (error) {
+            console.error("Verification failed:", error);
+        } finally {
+            setIsVerifying(false);
+        }
+    };
+
     return (
         <section className="px-6 -mt-10 relative z-20">
             <div 
@@ -128,24 +151,33 @@ export default function LiveBoardTickerv2() {
                 </p>
                 <div className="flex space-x-2">
                     <button 
-                        onClick={() => openBottomSheet("liveCreate", { 
-                            mode: "request",
-                            address: current.place_name,
-                            latitude: current.latitude,
-                            longitude: current.longitude
-                        })}
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            openBottomSheet("liveCreate", { 
+                                mode: "request",
+                                address: current.place_name,
+                                latitude: current.latitude,
+                                longitude: current.longitude
+                            });
+                        }}
                         className="text-[10px] font-black text-foreground/40 hover:text-red-500 flex items-center bg-foreground/5 px-3 py-1.5 rounded-full transition-all"
                     >
                         아니에요 👎
                     </button>
                     <button 
-                        onClick={() => {
-                            // verifyStatus(current.id, "my-user-id") logic would go here
-                            alert("인증 완료! 이웃들의 신뢰가 높아집니다.");
-                        }}
-                        className="text-[10px] font-black text-secondary flex items-center bg-secondary/10 px-3 py-1.5 rounded-full hover:bg-secondary hover:text-white transition-all shadow-sm"
+                        onClick={handleVerify}
+                        disabled={isVerifying || verifiedIds.has(current.id)}
+                        className={`text-[10px] font-black flex items-center px-3 py-1.5 rounded-full transition-all shadow-sm ${
+                            verifiedIds.has(current.id) 
+                            ? "bg-secondary text-white" 
+                            : "bg-secondary/10 text-secondary hover:bg-secondary hover:text-white"
+                        }`}
                     >
-                        맞아요 👍
+                        {verifiedIds.has(current.id) ? (
+                            <>인증됨 <CheckCircle2 size={12} className="ml-1" /></>
+                        ) : (
+                            isVerifying ? "처리 중..." : "맞아요 👍"
+                        )}
                     </button>
                     <button 
                         onClick={() => openBottomSheet("liveCreate", { mode: "share" })}

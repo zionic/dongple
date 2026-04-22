@@ -627,30 +627,50 @@ function LiveDetailView() {
     if (!detailItem) return null;
 
     return (
-        <div className="space-y-4 pt-1">
-            <div className="flex items-center space-x-2 mb-6">
-                <span className={`text-[18px] font-extrabold ${detailItem.status_color || 'text-foreground'}`}>
-                    {detailItem.is_request ? "답변 대기 중" : detailItem.status}
-                </span>
+        <div className="space-y-6 pt-2">
+            <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-3">
+                    <div className={`w-12 h-12 rounded-2xl flex items-center justify-center bg-foreground/5`}>
+                         <MapPin size={24} className="text-secondary" />
+                    </div>
+                    <div>
+                        <h2 className="text-lg font-black text-foreground">{detailItem.place_name}</h2>
+                        <div className="flex items-center space-x-2 mt-0.5">
+                            <span className={`text-xs font-black px-2 py-0.5 rounded-full bg-background/50 border border-border ${detailItem.status_color || 'text-foreground'}`}>
+                                {detailItem.is_request ? "🟠 답변 대기 중" : detailItem.status}
+                            </span>
+                            <span className="text-[10px] text-foreground/40 font-bold">{detailItem.category || "동네생활"}</span>
+                        </div>
+                    </div>
+                </div>
                 {!detailItem.is_request && (
-                    <div className="flex items-center text-[12px] font-bold text-gray-400 bg-nav-bg px-2.5 py-1 rounded-full border border-border">
-                        <CheckCircle2 size={14} className="text-secondary mr-1" />
-                        {detailItem.verified_count}명 동의
+                    <div className="text-right">
+                        <div className="text-xl font-black text-secondary">{detailItem.verified_count}</div>
+                        <div className="text-[9px] font-black text-foreground/30 uppercase tracking-tighter">Verified Count</div>
                     </div>
                 )}
             </div>
-            <div className="bg-nav-bg/50 rounded-xl p-4 text-[14px] border border-border min-h-[120px] pb-6">
+
+            <div className="bg-foreground/[0.02] rounded-[32px] p-6 border border-foreground/5 min-h-[160px] relative overflow-hidden">
+                <div className="absolute top-0 left-0 w-1 h-full bg-secondary/10" />
+                
+                <h3 className="text-[11px] font-black text-foreground/30 uppercase tracking-widest mb-6 flex items-center">
+                    <Activity size={12} className="mr-1.5" /> Recent Activity History
+                </h3>
+
                 {detailItem.history && detailItem.history.length > 0 ? (
-                    <div className="space-y-5">
+                    <div className="space-y-8">
                         {detailItem.history.map((hist: any, idx: number, arr: any[]) => (
-                            <div key={idx} className="flex flex-col space-y-1.5 relative">
+                            <div key={idx} className="flex flex-col space-y-2 relative">
                                 {idx !== arr.length - 1 && (
-                                    <div className="absolute left-1.5 top-5 bottom-[-20px] w-0.5 bg-border"></div>
+                                    <div className="absolute left-[7px] top-6 bottom-[-24px] w-0.5 bg-foreground/5"></div>
                                 )}
-                                <div className="flex items-center space-x-2.5 text-[11px] z-10 w-full pt-1">
-                                    <div className={`w-3.5 h-3.5 rounded-full ${hist.status_color.replace('text-', 'bg-')} bg-opacity-70 border-2 border-card-bg shadow-sm shrink-0`} />
-                                    <span className={`font-bold ${hist.status_color}`}>[{hist.status}]</span>
-                                    <span className="text-gray-400 font-medium tracking-tight">{hist.time}</span>
+                                <div className="flex items-center space-x-3 text-[11px] z-10 w-full">
+                                    <div className={`w-3.5 h-3.5 rounded-full border-2 border-background shadow-sm shrink-0 ${hist.status_color?.replace('text-', 'bg-') || 'bg-gray-400'}`} />
+                                    <div className="flex items-center justify-between flex-1">
+                                        <span className={`font-black ${hist.status_color}`}>[{hist.status}]</span>
+                                        <span className="text-foreground/30 font-bold tracking-tight">{hist.time}</span>
+                                    </div>
                                 </div>
                                 <div className="pl-6 text-[14px] text-foreground font-medium break-words whitespace-pre-wrap leading-relaxed opacity-90">
                                     {hist.text}
