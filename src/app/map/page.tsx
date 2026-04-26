@@ -41,6 +41,10 @@ const CATEGORIES = [
     { id: "기관", label: "기관", icon: Building2 },
 ];
 
+const SHEET_COLLAPSED_HEIGHT = 18;
+const SHEET_MID_HEIGHT = 52;
+const SHEET_EXPANDED_HEIGHT = 74;
+
 function MapContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
@@ -75,8 +79,10 @@ function MapContent() {
     const clickMarkerRef = useRef<any>(null);
     const [officialEvents, setOfficialEvents] = useState<any[]>([]);
     const isFetchingOfficial = useRef(false);
+    const handledRouteKey = useRef<string | null>(null);
     const startY = useRef(0);
     const startHeight = useRef(24);
+    const dragHeight = useRef(24);
 
     const loadData = async () => {
         try {
@@ -99,26 +105,113 @@ function MapContent() {
         }
     }, [markers, officialEvents, expandedCardId, clickedLatLng, selectedCategory, specialFilters]);
 
+    useEffect(() => {
+        if (!mapRef.current || isMapLoading) return;
+
+        const placeId = searchParams.get("place_id");
+        const view = searchParams.get("view");
+        const routeKey = placeId ? `place:${placeId}` : view ? `view:${view}` : null;
+
+        if (!routeKey || handledRouteKey.current === routeKey) return;
+        handledRouteKey.current = routeKey;
+
+        if (placeId) {
+            const didFocus = focusPlaceFromRoute(placeId);
+            if (!didFocus) {
+                handledRouteKey.current = null;
+            }
+            return;
+        }
+
+        if (view === "all") {
+            setExpandedCardId(null);
+            setClickedLatLng(null);
+            snapSheetTo(SHEET_COLLAPSED_HEIGHT);
+            mapRef.current.setZoom(15);
+            mapRef.current.panTo(new window.naver.maps.LatLng(storeLat, storeLng));
+        }
+    }, [isMapLoading, markers, officialEvents, searchParams, storeLat, storeLng]);
+
     const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
         setIsDragging(true);
         startY.current = e.clientY;
         startHeight.current = sheetHeight;
+        dragHeight.current = sheetHeight;
         e.currentTarget.setPointerCapture(e.pointerId);
     };
 
     const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
         if (!isDragging) return;
         const deltaVH = ((e.clientY - startY.current) / window.innerHeight) * 100;
-        let newHeight = Math.max(15, Math.min(92, startHeight.current - deltaVH));
+        let newHeight = Math.max(16, Math.min(SHEET_EXPANDED_HEIGHT, startHeight.current - deltaVH));
+        dragHeight.current = newHeight;
         setSheetHeight(newHeight);
     };
 
     const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
         setIsDragging(false);
-        e.currentTarget.releasePointerCapture(e.pointerId);
-        if (sheetHeight > 70) setSheetHeight(92);
-        else if (sheetHeight > 35) setSheetHeight(50);
-        else setSheetHeight(15);
+        if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+            e.currentTarget.releasePointerCapture(e.pointerId);
+        }
+
+        const currentHeight = dragHeight.current;
+        if (currentHeight > 64) setSheetHeight(SHEET_EXPANDED_HEIGHT);
+        else if (currentHeight > 32) setSheetHeight(SHEET_MID_HEIGHT);
+        else setSheetHeight(SHEET_COLLAPSED_HEIGHT);
+    };
+
+    const snapSheetTo = (height: number) => {
+        dragHeight.current = height;
+        setSheetHeight(height);
+    };
+
+    const moveCameraTo = (lat: number, lng: number, sheetOffset = 0.22) => {
+        if (!mapRef.current || !window.naver?.maps) return;
+
+        const map = mapRef.current;
+        map.setZoom(17);
+
+        const projection = map.getProjection();
+        if (!projection) {
+            map.panTo(new window.naver.maps.LatLng(lat, lng));
+            return;
+        }
+
+        const targetPixel = projection.fromCoordToOffset(new window.naver.maps.LatLng(lat, lng));
+        targetPixel.y -= window.innerHeight * sheetOffset;
+        const correctedCenter = projection.fromOffsetToCoord(targetPixel);
+        map.panTo(correctedCenter);
+    };
+
+    const focusPlaceFromRoute = (placeId: string) => {
+        const status = markers.find((item) => item.id === placeId);
+        if (status) {
+            setExpandedCardId(status.id);
+            setClickedLatLng(null);
+            snapSheetTo(SHEET_MID_HEIGHT);
+            moveCameraTo(status.latitude || 37.3015, status.longitude || 126.9930);
+            scrollCardIntoView(status.id);
+            return true;
+        }
+
+        const event = officialEvents.find((item) => String(item.id) === placeId);
+        if (event) {
+            setExpandedCardId(String(event.id));
+            setClickedLatLng(null);
+            snapSheetTo(SHEET_MID_HEIGHT);
+            moveCameraTo(event.lat, event.lng);
+            scrollCardIntoView(String(event.id));
+            return true;
+        }
+
+        return false;
+    };
+
+    const scrollCardIntoView = (id: string) => {
+        window.setTimeout(() => {
+            const el = document.getElementById(`card-${id}`);
+            if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+        }, 420);
     };
 
     const handleSearch = async (initialQuery?: string) => {
@@ -187,7 +280,7 @@ function MapContent() {
             setClickedLatLng({ lat: latlng.y, lng: latlng.x });
             const addrResult = await getAddressFromCoords(latlng.y, latlng.x);
             setClickedAddress(addrResult.fullAddress);
-            setSheetHeight(15);
+            snapSheetTo(SHEET_COLLAPSED_HEIGHT);
             setExpandedCardId(null);
             setIsResultOpen(false);
         });
@@ -237,8 +330,11 @@ function MapContent() {
 
         markersRef.current.forEach(m => m.setMap(null));
         markersRef.current = [];
-        rootsRef.current.forEach(root => root.unmount());
+        const rootsToUnmount = rootsRef.current;
         rootsRef.current = [];
+        window.setTimeout(() => {
+            rootsToUnmount.forEach(root => root.unmount());
+        }, 0);
 
         if (clickMarkerRef.current) clickMarkerRef.current.setMap(null);
 
@@ -294,13 +390,10 @@ function MapContent() {
 
             window.naver.maps.Event.addListener(marker, 'click', () => {
                 setExpandedCardId(m.id);
-                setSheetHeight(50);
+                snapSheetTo(SHEET_MID_HEIGHT);
                 setClickedLatLng(null); 
-                mapRef.current.panTo(marker.getPosition());
-                setTimeout(() => {
-                    const el = document.getElementById(`card-${m.id}`);
-                    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                }, 300);
+                moveCameraTo(m.latitude || 37.3015, m.longitude || 126.9930);
+                scrollCardIntoView(m.id);
             });
             markersRef.current.push(marker);
         });
@@ -327,7 +420,7 @@ function MapContent() {
                             content: `${festival.address}\n일시: ${festival.event_start_date} ~ ${festival.event_end_date}\n${festival.description}`,
                             is_official: true
                         });
-                        setSheetHeight(50);
+                        snapSheetTo(SHEET_MID_HEIGHT);
                         setClickedLatLng(null);
                         
                         const map = mapRef.current;
@@ -378,7 +471,9 @@ function MapContent() {
                     />
 
                     {/* My Location & Special Filters - Stacked on the left */}
-                    <div className="flex flex-col items-start space-y-2 pt-2 pointer-events-none">
+                    <div className={`relative z-0 flex flex-col items-start space-y-2 pt-2 pointer-events-none transition-opacity duration-200 ${
+                        sheetHeight > SHEET_MID_HEIGHT ? "opacity-0" : "opacity-100"
+                    }`}>
                         <button 
                             onClick={() => setSpecialFilters(prev => ({ ...prev, barrierFree: !prev.barrierFree }))}
                             className={`p-2.5 backdrop-blur-3xl rounded-2xl shadow-xl border transition-all pointer-events-auto hover:scale-110 active:scale-95 ${
@@ -419,6 +514,7 @@ function MapContent() {
 
             <MapBottomSheet 
                 sheetHeight={sheetHeight}
+                isDragging={isDragging}
                 markers={markers.filter(m => {
                     const catMatch = selectedCategory === "전체" || m.category === selectedCategory;
                     const barrierMatch = !specialFilters.barrierFree || (m as any).meta?.barrierFree;
@@ -434,6 +530,7 @@ function MapContent() {
                 onPointerDown={handlePointerDown}
                 onPointerMove={handlePointerMove}
                 onPointerUp={handlePointerUp}
+                onSnapToHeight={snapSheetTo}
                 onCardClick={(id, lat, lng) => {
                     setExpandedCardId(expandedCardId === id ? null : id);
                     if (expandedCardId !== id && mapRef.current) {
@@ -445,7 +542,7 @@ function MapContent() {
                         const correctedCenter = proj.fromOffsetToCoord(targetPixel);
                         
                         map.panTo(correctedCenter);
-                        setSheetHeight(50);
+                        snapSheetTo(SHEET_MID_HEIGHT);
                         setClickedLatLng(null);
                     }
                 }}

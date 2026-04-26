@@ -2,10 +2,9 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowRight, Flame, MapPinned, Navigation, PartyPopper, Plus, Smile } from "lucide-react";
+import { ArrowRight, Flame, MapPinned, Navigation, PartyPopper, Radio, Smile } from "lucide-react";
 import { fetchOfficialEvents, OfficialEvent } from "@/services/eventService";
 import { fetchLiveStatus, LiveStatus, subscribeLiveUpdates } from "@/services/statusService";
-import { useUIStore } from "@/lib/store/uiStore";
 
 type DecisionStatus = "crowded" | "normal" | "quiet";
 
@@ -22,10 +21,24 @@ const fallbackStatuses: StatusItem[] = [
     status_color: "text-red-500",
     is_request: false,
     verified_count: 3,
-    message: "사람 많음 / 이동 천천히",
+    message: "대기 김 / 사람 많음",
     trust_score: 1,
     is_hidden: false,
     created_at: new Date(Date.now() - 3 * 60 * 1000).toISOString(),
+    expires_at: new Date(Date.now() + 90 * 60 * 1000).toISOString(),
+  },
+  {
+    id: "fallback-normal",
+    place_name: "수원 화성 광장",
+    category: "관광",
+    status: "보통",
+    status_color: "text-yellow-500",
+    is_request: false,
+    verified_count: 2,
+    message: "산책 무난함 / 사진 찍기 좋음",
+    trust_score: 1,
+    is_hidden: false,
+    created_at: new Date(Date.now() - 4 * 60 * 1000).toISOString(),
     expires_at: new Date(Date.now() + 90 * 60 * 1000).toISOString(),
   },
   {
@@ -44,11 +57,12 @@ const fallbackStatuses: StatusItem[] = [
   },
 ];
 
+const positiveTags = ["조용함", "자리 있음", "이동 편함", "나들이 좋음"];
+
 export default function Home() {
   const [statuses, setStatuses] = useState<StatusItem[]>([]);
   const [events, setEvents] = useState<OfficialEvent[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const openBottomSheet = useUIStore((state) => state.openBottomSheet);
 
   useEffect(() => {
     const loadHomeData = async () => {
@@ -57,7 +71,7 @@ export default function Home() {
         setStatuses(liveData as StatusItem[]);
         setEvents(eventData);
       } catch (error) {
-        console.error("Failed to load home decision data:", error);
+        console.error("Failed to load home slider data:", error);
       } finally {
         setIsLoading(false);
       }
@@ -73,31 +87,32 @@ export default function Home() {
 
   const visibleStatuses = statuses.length > 0 ? statuses : fallbackStatuses;
 
-  const crowdedPlace = useMemo(() => {
-    const crowded = visibleStatuses
+  const crowdedPlaces = useMemo(() => {
+    return visibleStatuses
       .filter((item) => getDecisionStatus(item.status, item.is_request) === "crowded")
-      .sort(sortBySignal);
-
-    return crowded[0] ?? [...visibleStatuses].sort(sortBySignal)[0];
+      .sort(sortCrowded)
+      .slice(0, 5);
   }, [visibleStatuses]);
 
-  const quietPlace = useMemo(() => {
-    const quiet = visibleStatuses
+  const goodPlaces = useMemo(() => {
+    return visibleStatuses
       .filter((item) => getDecisionStatus(item.status, item.is_request) === "quiet")
-      .sort(sortByRecent);
+      .sort(sortGoodPlace)
+      .slice(0, 5);
+  }, [visibleStatuses]);
 
-    return quiet[0] ?? visibleStatuses.find((item) => item.id !== crowdedPlace?.id) ?? visibleStatuses[0];
-  }, [crowdedPlace?.id, visibleStatuses]);
+  const eventCards = useMemo(() => {
+    return events.slice(0, 5).map((event) => {
+      const matchedStatus = visibleStatuses.find(
+        (item) =>
+          item.tourapi_content_id === String(event.id) ||
+          item.place_name === event.title ||
+          item.place_name.includes(event.title) ||
+          event.title.includes(item.place_name),
+      );
 
-  const eventStatus = useMemo(() => {
-    const eventLikeStatus =
-      visibleStatuses.find((item) => Boolean(item.tourapi_content_id)) ??
-      visibleStatuses.find((item) => item.category?.includes("행사") || item.category?.includes("축제"));
-
-    return {
-      event: events[0],
-      status: eventLikeStatus,
-    };
+      return { event, status: matchedStatus };
+    });
   }, [events, visibleStatuses]);
 
   const summary = useMemo(() => {
@@ -110,177 +125,178 @@ export default function Home() {
     );
   }, [visibleStatuses]);
 
-  const openShare = (item?: StatusItem) => {
-    openBottomSheet("liveCreate", {
-      mode: "share",
-      address: item?.place_name,
-      latitude: item?.latitude,
-      longitude: item?.longitude,
-    });
-  };
+  const liveBoardItems = useMemo(() => {
+    return [...visibleStatuses].sort(sortByRecent).slice(0, 5);
+  }, [visibleStatuses]);
 
   return (
-    <div className="min-h-screen bg-background px-5 pb-32 pt-10 text-foreground">
-      <header className="mb-7 flex items-center justify-between">
-        <div>
-          <p className="text-[11px] font-black uppercase text-secondary">Dongple Now</p>
-          <h1 className="mt-1 text-3xl font-black">지금 어디가 살아있을까?</h1>
-        </div>
-        <button
-          type="button"
-          onClick={() => openShare()}
-          className="flex h-12 w-12 items-center justify-center rounded-full bg-foreground text-background shadow-lg"
-          aria-label="지금 상태 공유"
-        >
-          <Plus size={24} />
-        </button>
+    <div className="min-h-screen bg-background pb-32 pt-10 text-foreground">
+      <header className="mb-7 px-5">
+        <p className="text-[11px] font-black uppercase text-secondary">Dongple Now</p>
+        <h1 className="mt-1 text-3xl font-black">지금 어디가 살아있을까?</h1>
       </header>
 
-      <main className="space-y-6">
+      <main className="space-y-8">
         {isLoading ? (
           <DecisionSkeleton />
         ) : (
           <>
-            <section className="space-y-3">
-              <SectionTitle icon={<Flame size={18} />} title="지금 가장 붐비는 곳" />
-              <PlaceStatusCard
-                item={crowdedPlace}
-                fallbackStatus="crowded"
-                tone="hot"
-                onShare={() => openShare(crowdedPlace)}
-              />
+            <CardSlider
+              icon={<Flame size={18} />}
+              title="지금 붐비는 곳"
+              emptyTitle="아직 붐빈 곳이 없어요"
+              emptyDescription="지금 주변 상태를 공유해보세요"
+            >
+              {crowdedPlaces.map((item) => (
+                <PlaceSliderCard key={item.id} item={item} />
+              ))}
+            </CardSlider>
+
+            <CardSlider
+              icon={<Smile size={18} />}
+              title="지금 가기 좋은 곳"
+              emptyTitle="아직 한산한 곳이 없어요"
+              emptyDescription="주변을 확인해볼까요?"
+            >
+              {goodPlaces.map((item) => (
+                <PlaceSliderCard key={item.id} item={item} />
+              ))}
+            </CardSlider>
+
+            <CardSlider
+              icon={<PartyPopper size={18} />}
+              title="오늘 행사 상황"
+              emptyTitle="오늘 행사가 없어요"
+              emptyDescription="지도에서 주변 상태를 먼저 확인해보세요"
+            >
+              {eventCards.map(({ event, status }) => (
+                <EventSliderCard key={event.id} event={event} status={status} />
+              ))}
+            </CardSlider>
+
+            <section className="px-5">
+              <StatusSummary summary={summary} />
             </section>
 
-            <section className="space-y-3">
-              <SectionTitle icon={<Smile size={18} />} title="지금 가기 좋은 곳" />
-              <PlaceStatusCard
-                item={quietPlace}
-                fallbackStatus="quiet"
-                tone="good"
-                onShare={() => openShare(quietPlace)}
-              />
-            </section>
-
-            <StatusSummary summary={summary} />
-
-            <section className="space-y-3">
-              <SectionTitle icon={<PartyPopper size={18} />} title="오늘의 행사 상황" />
-              <EventStatusCard
-                event={eventStatus.event}
-                status={eventStatus.status}
-                onShare={() => openShare(eventStatus.status)}
-              />
+            <section className="px-5">
+              <LiveSituationBoard items={liveBoardItems} />
             </section>
           </>
         )}
 
-        <Link
-          href="/map"
-          className="flex h-14 items-center justify-center rounded-2xl bg-foreground text-sm font-black text-background shadow-xl"
-        >
-          <MapPinned size={18} className="mr-2" />
-          지도에서 전체 보기
-          <ArrowRight size={18} className="ml-2" />
-        </Link>
+        <div className="px-5">
+          <Link
+            href="/map?view=all"
+            className="flex h-14 items-center justify-center rounded-2xl bg-foreground text-sm font-black text-background shadow-xl"
+          >
+            <MapPinned size={18} className="mr-2" />
+            지도에서 전체 보기
+            <ArrowRight size={18} className="ml-2" />
+          </Link>
+        </div>
       </main>
     </div>
   );
 }
 
+function CardSlider({
+  icon,
+  title,
+  emptyTitle,
+  emptyDescription,
+  children,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  emptyTitle: string;
+  emptyDescription: string;
+  children: React.ReactNode;
+}) {
+  const hasCards = Boolean(children) && !(Array.isArray(children) && children.length === 0);
+
+  return (
+    <section className="space-y-3">
+      <SectionTitle icon={icon} title={title} />
+      <div className="flex snap-x snap-mandatory gap-4 overflow-x-auto px-5 pb-2 no-scrollbar">
+        {hasCards ? (
+          children
+        ) : (
+          <EmptySliderCard title={emptyTitle} description={emptyDescription} />
+        )}
+      </div>
+    </section>
+  );
+}
+
 function SectionTitle({ icon, title }: { icon: React.ReactNode; title: string }) {
   return (
-    <div className="flex items-center space-x-2 text-lg font-black">
+    <div className="flex items-center space-x-2 px-5 text-lg font-black">
       <span className="text-secondary">{icon}</span>
       <h2>{title}</h2>
     </div>
   );
 }
 
-function PlaceStatusCard({
-  item,
-  fallbackStatus,
-  tone,
-  onShare,
-}: {
-  item?: StatusItem;
-  fallbackStatus: DecisionStatus;
-  tone: "hot" | "good";
-  onShare: () => void;
-}) {
-  const decision = item ? getDecisionStatus(item.status, item.is_request) : fallbackStatus;
+function PlaceSliderCard({ item }: { item: StatusItem }) {
+  const decision = getDecisionStatus(item.status, item.is_request);
   const status = getStatusMeta(decision);
   const tags = getTags(item);
 
   return (
-    <article
-      className={`rounded-[28px] border p-5 shadow-sm ${
-        tone === "hot"
-          ? "border-red-100 bg-red-50/80 shadow-red-900/5"
-          : "border-green-100 bg-green-50/80 shadow-green-900/5"
-      }`}
-    >
-      <Link href={`/map?q=${encodeURIComponent(item?.place_name ?? "")}`} className="block">
-        <div className="flex items-start justify-between gap-4">
-          <div className="min-w-0">
-            <h3 className="truncate text-2xl font-black text-foreground">
-              {item?.place_name ?? "상태를 기다리는 중"}
-            </h3>
-            <StatusLine decision={decision} timeAgo={getTimeAgo(item?.created_at)} />
-          </div>
-          <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-full ${status.bg}`}>
-            <span className="h-4 w-4 rounded-full" style={{ backgroundColor: status.color }} />
-          </div>
-        </div>
-
+    <article className={`min-w-[84%] snap-start rounded-[28px] border p-5 shadow-sm ${status.cardClass}`}>
+      <Link href={getStatusMapHref(item)} className="block">
+        <h3 className="truncate text-2xl font-black">{item.place_name}</h3>
+        <StatusLine decision={decision} createdAt={item.created_at} />
         <TagRow tags={tags} />
       </Link>
-
-      <button
-        type="button"
-        onClick={onShare}
-        className="mt-5 flex h-11 w-full items-center justify-center rounded-xl bg-white text-sm font-black text-foreground shadow-sm"
-      >
-        지금 상태 공유
-      </button>
+      <MapButton href={getStatusMapHref(item)} />
     </article>
   );
 }
 
-function EventStatusCard({
-  event,
-  status,
-  onShare,
-}: {
-  event?: OfficialEvent;
-  status?: StatusItem;
-  onShare: () => void;
-}) {
+function EventSliderCard({ event, status }: { event: OfficialEvent; status?: StatusItem }) {
   const decision = status ? getDecisionStatus(status.status, status.is_request) : "normal";
-  const tags = status ? getTags(status) : ["상태 확인 필요", "공유 기다림"];
+  const tags = status ? getTags(status) : ["아직 현장 공유 없음"];
+  const href = status ? getStatusMapHref(status) : `/map?place_id=${encodeURIComponent(String(event.id))}`;
 
   return (
-    <article className="rounded-[28px] border border-border bg-card-bg p-5 shadow-sm">
-      <Link href={event ? `/map?q=${encodeURIComponent(event.title)}` : "/events"} className="block">
-        <div className="mb-4 flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <h3 className="truncate text-xl font-black">{event?.title ?? status?.place_name ?? "주변 행사"}</h3>
-            <StatusLine decision={decision} timeAgo={getTimeAgo(status?.created_at)} />
-          </div>
-          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-foreground text-background">
-            <PartyPopper size={20} />
-          </div>
+    <article className="min-w-[84%] snap-start rounded-[28px] border border-border bg-card-bg p-5 shadow-sm">
+      <Link href={href} className="block">
+        <div className="mb-2 flex items-center gap-2">
+          <PartyPopper size={18} className="shrink-0 text-secondary" />
+          <h3 className="truncate text-2xl font-black">{event.title}</h3>
         </div>
+        {status ? (
+          <StatusLine decision={decision} createdAt={status.created_at} />
+        ) : (
+          <p className="mt-3 text-sm font-black text-foreground/50">아직 현장 공유 없음</p>
+        )}
         <TagRow tags={tags} />
       </Link>
-
-      <button
-        type="button"
-        onClick={onShare}
-        className="mt-5 flex h-11 w-full items-center justify-center rounded-xl bg-foreground text-sm font-black text-background"
-      >
-        지금 공유
-      </button>
+      <MapButton href={href} label={status ? "지도 보기" : "첫 상태 남기기"} />
     </article>
+  );
+}
+
+function MapButton({ href, label = "지도 보기" }: { href: string; label?: string }) {
+  return (
+    <Link
+      href={href}
+      className="mt-5 flex h-11 w-full items-center justify-center rounded-xl bg-white text-sm font-black text-foreground shadow-sm"
+    >
+      {label}
+      <ArrowRight size={15} className="ml-1.5" />
+    </Link>
+  );
+}
+
+function EmptySliderCard({ title, description }: { title: string; description: string }) {
+  return (
+    <div className="min-w-[84%] snap-start rounded-[28px] border border-dashed border-border bg-foreground/[0.02] p-5">
+      <h3 className="text-xl font-black text-foreground/70">{title}</h3>
+      <p className="mt-2 text-sm font-bold text-foreground/40">{description}</p>
+      <MapButton href="/map?view=all" label="지도에서 확인" />
+    </div>
   );
 }
 
@@ -292,9 +308,9 @@ function StatusSummary({ summary }: { summary: Record<DecisionStatus, number> })
       <div className="mb-4 flex items-center justify-between">
         <div className="flex items-center space-x-2">
           <Navigation size={18} className="text-secondary" />
-          <h2 className="text-lg font-black">내 주변 상태</h2>
+          <h2 className="text-lg font-black">내 주변 상태 요약</h2>
         </div>
-        <span className="text-xs font-bold text-foreground/45">최근 업데이트 기준</span>
+        <span className="text-xs font-bold text-foreground/45">최근 업데이트</span>
       </div>
 
       <div className="mb-4 flex h-3 overflow-hidden rounded-full bg-foreground/5">
@@ -312,6 +328,39 @@ function StatusSummary({ summary }: { summary: Record<DecisionStatus, number> })
   );
 }
 
+function LiveSituationBoard({ items }: { items: StatusItem[] }) {
+  return (
+    <section className="rounded-[24px] border border-border bg-card-bg p-5">
+      <div className="mb-4 flex items-center space-x-2">
+        <Radio size={18} className="text-secondary" />
+        <h2 className="text-lg font-black">지금 올라오는 상황</h2>
+      </div>
+      <div className="space-y-3">
+        {items.map((item) => {
+          const decision = getDecisionStatus(item.status, item.is_request);
+          const status = getStatusMeta(decision);
+
+          return (
+            <Link
+              key={item.id}
+              href={getStatusMapHref(item)}
+              className="flex items-center justify-between rounded-2xl bg-foreground/[0.03] px-4 py-3"
+            >
+              <div className="min-w-0">
+                <p className="truncate text-sm font-black">{item.place_name}</p>
+                <p className="mt-1 text-xs font-bold text-foreground/45">
+                  <span style={{ color: status.color }}>{status.label}</span> · {getTimeAgo(item.created_at)}
+                </p>
+              </div>
+              <ArrowRight size={16} className="shrink-0 text-foreground/35" />
+            </Link>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
 function SummaryCount({ label, value, color }: { label: string; value: number; color: string }) {
   return (
     <div className="rounded-2xl bg-foreground/[0.03] px-3 py-3">
@@ -322,14 +371,16 @@ function SummaryCount({ label, value, color }: { label: string; value: number; c
   );
 }
 
-function StatusLine({ decision, timeAgo }: { decision: DecisionStatus; timeAgo: string }) {
+function StatusLine({ decision, createdAt }: { decision: DecisionStatus; createdAt?: string }) {
   const status = getStatusMeta(decision);
 
   return (
-    <div className="mt-2 flex items-center text-sm font-black" style={{ color: status.color }}>
-      <span className="mr-2 h-2.5 w-2.5 rounded-full" style={{ backgroundColor: status.color }} />
-      지금 {status.label}
-      <span className="ml-2 text-xs font-bold text-foreground/40">({timeAgo})</span>
+    <div className="mt-3">
+      <div className="flex items-center text-base font-black" style={{ color: status.color }}>
+        <span className="mr-2 h-2.5 w-2.5 rounded-full" style={{ backgroundColor: status.color }} />
+        지금 {status.label}
+      </div>
+      <p className="mt-1 text-xs font-bold text-foreground/45">{getTimeAgo(createdAt)} 업데이트</p>
     </div>
   );
 }
@@ -348,9 +399,9 @@ function TagRow({ tags }: { tags: string[] }) {
 
 function DecisionSkeleton() {
   return (
-    <div className="space-y-5">
+    <div className="space-y-6 px-5">
       {[1, 2, 3].map((item) => (
-        <div key={item} className="h-36 animate-pulse rounded-[28px] bg-foreground/5" />
+        <div key={item} className="h-40 animate-pulse rounded-[28px] bg-foreground/5" />
       ))}
     </div>
   );
@@ -365,14 +416,14 @@ function getDecisionStatus(status: string, isRequest?: boolean): DecisionStatus 
 
 function getStatusMeta(status: DecisionStatus) {
   if (status === "crowded") {
-    return { label: "붐빔", color: "#ff4d4f", bg: "bg-red-100" };
+    return { label: "붐빔", color: "#ff4d4f", cardClass: "border-red-100 bg-red-50/80 shadow-red-900/5" };
   }
 
   if (status === "quiet") {
-    return { label: "한산", color: "#52c41a", bg: "bg-green-100" };
+    return { label: "한산", color: "#52c41a", cardClass: "border-green-100 bg-green-50/80 shadow-green-900/5" };
   }
 
-  return { label: "보통", color: "#faad14", bg: "bg-yellow-100" };
+  return { label: "보통", color: "#faad14", cardClass: "border-yellow-100 bg-yellow-50/80 shadow-yellow-900/5" };
 }
 
 function getTags(item?: StatusItem) {
@@ -405,10 +456,27 @@ function getTimeAgo(createdAt?: string) {
   return `${Math.floor(diffHour / 24)}일 전`;
 }
 
-function sortBySignal(a: StatusItem, b: StatusItem) {
-  const verifyDiff = (b.verified_count ?? 0) - (a.verified_count ?? 0);
-  if (verifyDiff !== 0) return verifyDiff;
+function getStatusMapHref(item?: StatusItem) {
+  if (!item?.id || item.id.startsWith("fallback-")) {
+    return `/map?q=${encodeURIComponent(item?.place_name ?? "")}`;
+  }
+
+  return `/map?place_id=${encodeURIComponent(item.id)}`;
+}
+
+function sortCrowded(a: StatusItem, b: StatusItem) {
+  return sortByRecent(a, b) || (b.verified_count ?? 0) - (a.verified_count ?? 0);
+}
+
+function sortGoodPlace(a: StatusItem, b: StatusItem) {
+  const tagDiff = countPositiveTags(b) - countPositiveTags(a);
+  if (tagDiff !== 0) return tagDiff;
   return sortByRecent(a, b);
+}
+
+function countPositiveTags(item: StatusItem) {
+  const text = getTags(item).join(" ");
+  return positiveTags.filter((tag) => text.includes(tag)).length;
 }
 
 function sortByRecent(a: StatusItem, b: StatusItem) {
