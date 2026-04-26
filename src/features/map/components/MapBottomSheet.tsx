@@ -127,7 +127,10 @@ const allItems = [
             </div>
 
             <div className="px-6 py-4 overflow-y-auto space-y-4 flex-1 pb-32 no-scrollbar">
-                {allItems.length > 0 ? allItems.map(card => (
+                {allItems.length > 0 ? allItems.map(card => {
+                    const statusTheme = getStatusTheme(card);
+
+                    return (
                     <motion.div 
                         key={`${card.isOfficial ? 'off' : 'live'}-${card.id}`} 
                         id={`card-${card.id}`} 
@@ -159,9 +162,9 @@ const allItems = [
                                         {card.distanceStr}
                                     </span>
                                 </div>
-                                <div className={`text-[13px] font-black flex items-center ${card.isOfficial ? 'text-secondary' : card.is_request ? 'text-orange-600' : card.status === '여유' ? 'text-green-600' : card.status === '보통' ? 'text-blue-600' : 'text-red-600'}`}>
-                                    <div className={`w-2 h-2 rounded-full mr-1.5 ${card.is_request ? 'bg-orange-500' : card.status === '여유' ? 'bg-green-500' : card.status === '보통' ? 'bg-blue-500' : 'bg-red-500'} ${expandedCardId === card.id ? 'animate-ping' : ''}`} />
-                                    {card.isOfficial ? '공식 소식' : card.is_request ? '답변 요청' : `${card.status} 상황`}
+                                <div className={`inline-flex items-center rounded-full px-2.5 py-1 text-[13px] font-black ${statusTheme.text} ${statusTheme.bg}`}>
+                                    <div className={`w-2 h-2 rounded-full mr-1.5 ${statusTheme.dot} ${expandedCardId === card.id ? 'animate-ping' : ''}`} />
+                                    {statusTheme.label}
                                 </div>
                             </div>
                             <div className="w-14 h-14 bg-foreground/5 rounded-3xl flex items-center justify-center text-foreground/30 overflow-hidden shrink-0">
@@ -246,7 +249,8 @@ const allItems = [
                             </motion.div>
                         )}
                     </motion.div>
-                )) : (
+                    );
+                }) : (
                     <div className="py-20 flex flex-col items-center justify-center text-foreground/10 text-center">
                         <MapPin size={48} className="mb-4 opacity-5" />
                         <p className="font-black text-lg">주변에 등록된 소식이 없습니다.</p>
@@ -255,6 +259,51 @@ const allItems = [
             </div>
         </div>
     );
+}
+
+function getStatusTheme(card: any) {
+    if (card.isOfficial) {
+        return {
+            text: "text-secondary",
+            bg: "bg-secondary/10",
+            dot: "bg-secondary",
+            label: "공식 소식"
+        };
+    }
+
+    if (card.is_request) {
+        return {
+            text: "text-orange-600",
+            bg: "bg-orange-50",
+            dot: "bg-orange-500",
+            label: "답변 요청"
+        };
+    }
+
+    if (card.status === "여유" || card.status === "한산") {
+        return {
+            text: "text-green-600",
+            bg: "bg-green-50",
+            dot: "bg-green-500",
+            label: `${card.status} 상황`
+        };
+    }
+
+    if (card.status === "보통") {
+        return {
+            text: "text-yellow-700",
+            bg: "bg-yellow-50",
+            dot: "bg-yellow-500",
+            label: "보통 상황"
+        };
+    }
+
+    return {
+        text: "text-red-600",
+        bg: "bg-red-50",
+        dot: "bg-red-500",
+        label: `${card.status} 상황`
+    };
 }
 
 function SizeButton({
