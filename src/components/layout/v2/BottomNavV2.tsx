@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Home, Search, Plus, Bell, User, LayoutList } from "lucide-react";
+import { Home, Map, Plus, User } from "lucide-react";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
 import { useUIStore } from "@/lib/store/uiStore";
@@ -12,10 +12,9 @@ export default function BottomNavV2() {
 
     const navItems = [
         { icon: Home, label: "홈", path: "/" },
-        { icon: Search, label: "지도", path: "/map" },
-        { icon: Plus, label: "기록", isCenter: true },
-        { icon: LayoutList, label: "소식", path: "/news" },
-        { icon: User, label: "내 정보", path: "#" },
+        { icon: Map, label: "지도", path: "/map" },
+        { icon: Plus, label: "공유", isCenter: true },
+        { icon: User, label: "나의 동플", path: "#" },
     ];
 
     return (
@@ -31,8 +30,9 @@ export default function BottomNavV2() {
                                 <motion.button
                                     whileHover={{ scale: 1.1 }}
                                     whileTap={{ scale: 0.9 }}
-                                    onClick={() => openBottomSheet("write")}
+                                    onClick={() => openBottomSheet("liveCreate", { mode: "share" })}
                                     className="absolute top-[-44px] w-16 h-16 bg-gradient-to-br from-[#A67C52] to-[#795548] rounded-full flex items-center justify-center text-white shadow-2xl shadow-[#795548]/40 border-4 border-background transition-colors duration-500"
+                                    aria-label="지금 상태 공유"
                                 >
                                     <Plus size={32} />
                                 </motion.button>

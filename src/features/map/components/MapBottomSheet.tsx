@@ -2,7 +2,7 @@
 
 import React from "react";
 import { motion } from "framer-motion";
-import { MapPin, HelpCircle, Plus, Navigation2, ShieldCheck, Check } from "lucide-react";
+import { Check, ChevronsDown, ChevronsUp, HelpCircle, MapPin, Minus, Navigation2, Plus, ShieldCheck } from "lucide-react";
 import { LiveStatus, verifyStatusWithTrust } from "@/services/statusService";
 import { useLocationStore } from "@/lib/store/locationStore";
 import { getDistance, formatDistance } from "@/services/api";
@@ -11,9 +11,11 @@ import { getPersistentUserId } from "@/lib/auth-utils";
 
 interface MapBottomSheetProps {
     sheetHeight: number;
+    isDragging?: boolean;
     onPointerDown: (e: React.PointerEvent<HTMLDivElement>) => void;
     onPointerMove: (e: React.PointerEvent<HTMLDivElement>) => void;
     onPointerUp: (e: React.PointerEvent<HTMLDivElement>) => void;
+    onSnapToHeight: (height: number) => void;
     markers: LiveStatus[];
     officialEvents?: any[];
     expandedCardId: string | null;
@@ -23,9 +25,11 @@ interface MapBottomSheetProps {
 
 export default function MapBottomSheet({
     sheetHeight,
+    isDragging = false,
     onPointerDown,
     onPointerMove,
     onPointerUp,
+    onSnapToHeight,
     markers,
     officialEvents = [],
     expandedCardId,
@@ -48,7 +52,7 @@ export default function MapBottomSheet({
     };
 
     // 소식들과 공식 행사를 통합하고 거리 계산 및 정렬 추가
-    const allItems = [
+const allItems = [
         ...markers.map(m => {
             const dist = getDistance(userLat, userLng, m.latitude || 37.3015, m.longitude || 126.9930);
             return { ...m, isOfficial: false, distance: dist, distanceStr: formatDistance(dist) };
@@ -68,19 +72,43 @@ export default function MapBottomSheet({
         })
     ].sort((a, b) => (a.distance || 0) - (b.distance || 0));
 
+    const isExpanded = sheetHeight >= 68;
+
     return (
         <div 
-            className={`absolute bottom-0 left-0 w-full z-[60] bg-nav-bg backdrop-blur-3xl rounded-t-[44px] shadow-2xl border-t border-border flex flex-col transition-all duration-700`} 
+            className={`absolute bottom-0 left-0 w-full z-[60] bg-nav-bg backdrop-blur-3xl rounded-t-[32px] shadow-2xl border-t border-border flex flex-col ${
+                isDragging ? "" : "transition-[height] duration-300 ease-out"
+            }`} 
             style={{ height: `${sheetHeight}vh` }}
         >
             <div 
-                className="w-full pt-5 pb-3 cursor-ns-resize flex flex-col items-center shrink-0 touch-none" 
+                className="w-full pt-4 pb-3 cursor-ns-resize flex flex-col items-center shrink-0 touch-none select-none" 
                 onPointerDown={onPointerDown} 
                 onPointerMove={onPointerMove} 
                 onPointerUp={onPointerUp}
             >
-                <div className="w-12 h-1.5 bg-foreground/10 rounded-full mb-4" />
-                <div className="w-full px-8 flex items-center justify-between">
+                <div className="w-12 h-1.5 bg-foreground/15 rounded-full mb-3" />
+                <div className="w-full px-6 mb-3 flex items-center justify-center gap-2">
+                    <SizeButton
+                        label="작게"
+                        active={sheetHeight <= 24}
+                        onClick={() => onSnapToHeight(18)}
+                        icon={<ChevronsDown size={16} />}
+                    />
+                    <SizeButton
+                        label="중간"
+                        active={sheetHeight > 24 && !isExpanded}
+                        onClick={() => onSnapToHeight(52)}
+                        icon={<Minus size={16} />}
+                    />
+                    <SizeButton
+                        label="크게"
+                        active={isExpanded}
+                        onClick={() => onSnapToHeight(74)}
+                        icon={<ChevronsUp size={16} />}
+                    />
+                </div>
+                <div className="w-full px-6 flex items-center justify-between">
                     <div className="flex flex-col">
                         <span className="text-[11px] font-black text-secondary tracking-widest uppercase mb-1">DONGPLE LIVE</span>
                         <h3 className="font-black text-foreground text-2xl tracking-tighter">
@@ -88,10 +116,10 @@ export default function MapBottomSheet({
                         </h3>
                     </div>
                     <div className="flex space-x-2">
-                         <button onClick={() => onOpenCreate("request")} className="p-3 bg-foreground/5 rounded-2xl text-foreground/40 hover:text-foreground transition-all">
+                         <button onPointerDown={(e) => e.stopPropagation()} onClick={() => onOpenCreate("request")} className="p-3 bg-foreground/5 rounded-2xl text-foreground/40 hover:text-foreground transition-all" aria-label="상황 요청">
                              <HelpCircle size={22} />
                          </button>
-                         <button onClick={() => onOpenCreate("share")} className="p-3 bg-secondary text-white rounded-2xl shadow-lg shadow-secondary/30 transition-all">
+                         <button onPointerDown={(e) => e.stopPropagation()} onClick={() => onOpenCreate("share")} className="p-3 bg-secondary text-white rounded-2xl shadow-lg shadow-secondary/30 transition-all" aria-label="지금 상태 공유">
                              <Plus size={22} />
                          </button>
                     </div>
@@ -99,7 +127,10 @@ export default function MapBottomSheet({
             </div>
 
             <div className="px-6 py-4 overflow-y-auto space-y-4 flex-1 pb-32 no-scrollbar">
-                {allItems.length > 0 ? allItems.map(card => (
+                {allItems.length > 0 ? allItems.map(card => {
+                    const statusTheme = getStatusTheme(card);
+
+                    return (
                     <motion.div 
                         key={`${card.isOfficial ? 'off' : 'live'}-${card.id}`} 
                         id={`card-${card.id}`} 
@@ -131,9 +162,9 @@ export default function MapBottomSheet({
                                         {card.distanceStr}
                                     </span>
                                 </div>
-                                <div className={`text-[13px] font-black flex items-center ${card.isOfficial ? 'text-secondary' : card.is_request ? 'text-orange-600' : card.status === '여유' ? 'text-green-600' : card.status === '보통' ? 'text-blue-600' : 'text-red-600'}`}>
-                                    <div className={`w-2 h-2 rounded-full mr-1.5 ${card.is_request ? 'bg-orange-500' : card.status === '여유' ? 'bg-green-500' : card.status === '보통' ? 'bg-blue-500' : 'bg-red-500'} ${expandedCardId === card.id ? 'animate-ping' : ''}`} />
-                                    {card.isOfficial ? '공식 소식' : card.is_request ? '답변 요청' : `${card.status} 상황`}
+                                <div className={`inline-flex items-center rounded-full px-2.5 py-1 text-[13px] font-black ${statusTheme.text} ${statusTheme.bg}`}>
+                                    <div className={`w-2 h-2 rounded-full mr-1.5 ${statusTheme.dot} ${expandedCardId === card.id ? 'animate-ping' : ''}`} />
+                                    {statusTheme.label}
                                 </div>
                             </div>
                             <div className="w-14 h-14 bg-foreground/5 rounded-3xl flex items-center justify-center text-foreground/30 overflow-hidden shrink-0">
@@ -218,7 +249,8 @@ export default function MapBottomSheet({
                             </motion.div>
                         )}
                     </motion.div>
-                )) : (
+                    );
+                }) : (
                     <div className="py-20 flex flex-col items-center justify-center text-foreground/10 text-center">
                         <MapPin size={48} className="mb-4 opacity-5" />
                         <p className="font-black text-lg">주변에 등록된 소식이 없습니다.</p>
@@ -226,5 +258,80 @@ export default function MapBottomSheet({
                 )}
             </div>
         </div>
+    );
+}
+
+function getStatusTheme(card: any) {
+    if (card.isOfficial) {
+        return {
+            text: "text-secondary",
+            bg: "bg-secondary/10",
+            dot: "bg-secondary",
+            label: "공식 소식"
+        };
+    }
+
+    if (card.is_request) {
+        return {
+            text: "text-orange-600",
+            bg: "bg-orange-50",
+            dot: "bg-orange-500",
+            label: "답변 요청"
+        };
+    }
+
+    if (card.status === "여유" || card.status === "한산") {
+        return {
+            text: "text-green-600",
+            bg: "bg-green-50",
+            dot: "bg-green-500",
+            label: `${card.status} 상황`
+        };
+    }
+
+    if (card.status === "보통") {
+        return {
+            text: "text-yellow-700",
+            bg: "bg-yellow-50",
+            dot: "bg-yellow-500",
+            label: "보통 상황"
+        };
+    }
+
+    return {
+        text: "text-red-600",
+        bg: "bg-red-50",
+        dot: "bg-red-500",
+        label: `${card.status} 상황`
+    };
+}
+
+function SizeButton({
+    label,
+    active,
+    icon,
+    onClick
+}: {
+    label: string;
+    active: boolean;
+    icon: React.ReactNode;
+    onClick: () => void;
+}) {
+    return (
+        <button
+            type="button"
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={onClick}
+            className={`flex h-9 items-center gap-1.5 rounded-full px-3 text-[11px] font-black transition-all ${
+                active
+                    ? "bg-foreground text-background shadow-lg"
+                    : "bg-foreground/5 text-foreground/45 hover:bg-foreground/10 hover:text-foreground"
+            }`}
+            aria-label={`주변의 순간들 ${label} 보기`}
+            title={label}
+        >
+            {icon}
+            <span>{label}</span>
+        </button>
     );
 }

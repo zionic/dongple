@@ -1,191 +1,484 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import {
-    CloudSun, Building2, Store, School,
-    HeartPulse, Landmark, Coffee, TrendingUp, Activity, 
-    ShieldCheck, Star, LayoutGrid, List
-} from "lucide-react";
-import { motion } from "framer-motion";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { TrustBadge } from "@/lib/trust-utils";
+import { ArrowRight, Flame, MapPinned, Navigation, PartyPopper, Radio, Smile } from "lucide-react";
+import { fetchOfficialEvents, OfficialEvent } from "@/services/eventService";
+import { fetchLiveStatus, LiveStatus, subscribeLiveUpdates } from "@/services/statusService";
 
-import Image from "next/image";
+type DecisionStatus = "crowded" | "normal" | "quiet";
 
-// V2 전용 컴포넌트 임포트
-import HeroSection from "@/components/dashboard/v2/HeroSection";
-import QuestionSummaryV2 from "@/components/dashboard/v2/QuestionSummaryV2";
-import LiveBoardTickerv2 from "@/components/dashboard/v2/LiveBoardTickerv2";
-import OfficialEventSection from "@/features/events/components/OfficialEventSection";
+type StatusItem = LiveStatus & {
+  history?: { status: string; status_color: string; text: string; time: string }[];
+};
 
-import { useUIStore } from "@/lib/store/uiStore";
-import { fetchPosts, subscribePosts, Post } from "@/services/postService";
+const fallbackStatuses: StatusItem[] = [
+  {
+    id: "fallback-crowded",
+    place_name: "만석공원 산책로",
+    category: "공원",
+    status: "혼잡",
+    status_color: "text-red-500",
+    is_request: false,
+    verified_count: 3,
+    message: "대기 김 / 사람 많음",
+    trust_score: 1,
+    is_hidden: false,
+    created_at: new Date(Date.now() - 3 * 60 * 1000).toISOString(),
+    expires_at: new Date(Date.now() + 90 * 60 * 1000).toISOString(),
+  },
+  {
+    id: "fallback-normal",
+    place_name: "수원 화성 광장",
+    category: "관광",
+    status: "보통",
+    status_color: "text-yellow-500",
+    is_request: false,
+    verified_count: 2,
+    message: "산책 무난함 / 사진 찍기 좋음",
+    trust_score: 1,
+    is_hidden: false,
+    created_at: new Date(Date.now() - 4 * 60 * 1000).toISOString(),
+    expires_at: new Date(Date.now() + 90 * 60 * 1000).toISOString(),
+  },
+  {
+    id: "fallback-quiet",
+    place_name: "동네 카페 골목",
+    category: "카페/식당",
+    status: "여유",
+    status_color: "text-green-500",
+    is_request: false,
+    verified_count: 2,
+    message: "조용함 / 자리 있음",
+    trust_score: 1,
+    is_hidden: false,
+    created_at: new Date(Date.now() - 5 * 60 * 1000).toISOString(),
+    expires_at: new Date(Date.now() + 90 * 60 * 1000).toISOString(),
+  },
+];
+
+const positiveTags = ["조용함", "자리 있음", "이동 편함", "나들이 좋음"];
 
 export default function Home() {
-    const [posts, setPosts] = useState<Post[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
-    const [viewMode, setViewMode] = useState<"grid" | "list">("list");
-    const openBottomSheet = useUIStore((state) => state.openBottomSheet);
+  const [statuses, setStatuses] = useState<StatusItem[]>([]);
+  const [events, setEvents] = useState<OfficialEvent[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-    const loadPosts = async () => {
-        try {
-            const data = await fetchPosts(10);
-            setPosts(data);
-        } catch (error) {
-            console.error("Failed to load posts:", error);
-        } finally {
-            setIsLoading(false);
-        }
+  useEffect(() => {
+    const loadHomeData = async () => {
+      try {
+        const [liveData, eventData] = await Promise.all([fetchLiveStatus(), fetchOfficialEvents()]);
+        setStatuses(liveData as StatusItem[]);
+        setEvents(eventData);
+      } catch (error) {
+        console.error("Failed to load home slider data:", error);
+      } finally {
+        setIsLoading(false);
+      }
     };
 
-    useEffect(() => {
-        loadPosts();
-        const sub = subscribePosts(loadPosts);
-        return () => { sub.unsubscribe(); };
-    }, []);
+    loadHomeData();
+    const sub = subscribeLiveUpdates(loadHomeData);
 
-    const categories = [
-        { icon: CloudSun, label: "날씨", color: "bg-blue-100 text-blue-600" },
-        { icon: Coffee, label: "카페", color: "bg-amber-100 text-amber-600" },
-        { icon: Store, label: "가게", color: "bg-green-100 text-green-600" },
-        { icon: Building2, label: "이사", color: "bg-orange-100 text-orange-600" },
-        { icon: HeartPulse, label: "병원", color: "bg-red-100 text-red-600" },
-        { icon: School, label: "교육", color: "bg-yellow-100 text-yellow-600" },
-        { icon: Landmark, label: "공공", color: "bg-purple-100 text-purple-600" },
-        { icon: LayoutGrid, label: "전체", color: "bg-gray-100 text-gray-600" },
-    ];
+    return () => {
+      sub.unsubscribe();
+    };
+  }, []);
 
-    return (
-        <div className="bg-background min-h-screen pb-32 transition-colors duration-500">
-            {/* V2 Hero 영역 */}
-            <HeroSection />
+  const visibleStatuses = statuses.length > 0 ? statuses : fallbackStatuses;
 
-            {/* V2 실시간 동형 티커 */}
-            <LiveBoardTickerv2 />
+  const crowdedPlaces = useMemo(() => {
+    return visibleStatuses
+      .filter((item) => getDecisionStatus(item.status, item.is_request) === "crowded")
+      .sort(sortCrowded)
+      .slice(0, 5);
+  }, [visibleStatuses]);
 
+  const goodPlaces = useMemo(() => {
+    return visibleStatuses
+      .filter((item) => getDecisionStatus(item.status, item.is_request) === "quiet")
+      .sort(sortGoodPlace)
+      .slice(0, 5);
+  }, [visibleStatuses]);
 
+  const eventCards = useMemo(() => {
+    return events.slice(0, 5).map((event) => {
+      const matchedStatus = visibleStatuses.find(
+        (item) =>
+          item.tourapi_content_id === String(event.id) ||
+          item.place_name === event.title ||
+          item.place_name.includes(event.title) ||
+          event.title.includes(item.place_name),
+      );
 
-            {/* 공식 행사 섹션 (Phase 1 핵심 기능) */}
-            <div className="mt-8">
-                <OfficialEventSection />
-            </div>
+      return { event, status: matchedStatus };
+    });
+  }, [events, visibleStatuses]);
 
-            {/* V2 AI 요약 캐러셀 */}
-            <QuestionSummaryV2 />
-
-            {/* 사회적 증명 (Social Proof) 배너 */}
-            <section className="px-6 py-2">
-                <div className="bg-foreground/[0.02] border border-foreground/5 rounded-[32px] p-6 flex items-center justify-between">
-                    <div>
-                        <p className="text-[10px] font-black text-secondary tracking-widest mb-1 uppercase">Community Power</p>
-                        <h4 className="text-[15px] font-black text-foreground">30,000+ 이웃이 함께 기록 중</h4>
-                    </div>
-                    <div className="flex -space-x-2">
-                        {[1,2,3,4].map(i => (
-                            <div key={i} className="relative w-8 h-8 rounded-full border-2 border-background bg-foreground/10 overflow-hidden">
-                                <Image 
-                                    src={`https://i.pravatar.cc/100?img=${i+10}`} 
-                                    alt={`동네 이웃 ${i}`}
-                                    fill
-                                    className="object-cover" 
-                                />
-                            </div>
-                        ))}
-                        <div className="w-8 h-8 rounded-full border-2 border-background bg-secondary flex items-center justify-center text-[10px] font-black text-white">+</div>
-                    </div>
-                </div>
-            </section>
-
-            {/* 카테고리 그리드 섹션 */}
-            <section className="px-6 py-4">
-                <div className="flex items-center justify-between mb-6">
-                    <h2 className="text-xl font-black text-foreground">어떤 소식이 궁금하세요?</h2>
-                </div>
-                <div className="grid grid-cols-4 gap-4">
-                    {categories.map((cat, i) => (
-                        <Link key={i} href={cat.label === "전체" ? "/news" : `/news?cat=${cat.label}`} aria-label={`${cat.label} 소식 보기`}>
-                            <motion.button
-                                whileHover={{ scale: 1.05 }}
-                                whileTap={{ scale: 0.95 }}
-                                className="w-full flex flex-col items-center space-y-2"
-                            >
-                                <div className={`w-14 h-14 rounded-2xl ${cat.color} flex items-center justify-center shadow-lg shadow-current/10`}>
-                                    <cat.icon size={24} />
-                                </div>
-                                <span className="text-[11px] font-bold text-foreground/60">{cat.label}</span>
-                            </motion.button>
-                        </Link>
-                    ))}
-                </div>
-            </section>
-
-            {/* 메인 피드 섹션 */}
-            <section className="px-6 py-10 space-y-6">
-                <div className="flex items-center justify-between">
-                    <h2 className="text-xl font-black text-foreground">지금 우리 동네는</h2>
-                    <div className="flex bg-foreground/5 p-1 rounded-xl">
-                        <button 
-                            onClick={() => setViewMode("list")}
-                            className={`p-1.5 rounded-lg transition-all ${viewMode === "list" ? "bg-card-bg shadow-sm text-accent" : "text-foreground/40"}`}
-                        >
-                            <List size={16} />
-                        </button>
-                        <button 
-                            onClick={() => setViewMode("grid")}
-                            className={`p-1.5 rounded-lg transition-all ${viewMode === "grid" ? "bg-card-bg shadow-sm text-accent" : "text-foreground/40"}`}
-                        >
-                            <LayoutGrid size={16} />
-                        </button>
-                    </div>
-                </div>
-
-                <div className={viewMode === "grid" ? "grid grid-cols-2 gap-4" : "space-y-4"}>
-                    {isLoading ? (
-                        [1, 2, 3, 4].map(i => (
-                            <div key={i} className="h-32 bg-foreground/5 rounded-[24px] animate-pulse" />
-                        ))
-                    ) : (
-                        posts.length > 0 ? (
-                            posts.map((post) => (
-                                <FeedItem key={post.id} post={post} mode={viewMode} onClick={() => openBottomSheet("postDetail", { ...post })} />
-                            ))
-                        ) : (
-                            <div className="py-20 text-center text-foreground/20 font-bold border-2 border-dashed border-foreground/5 rounded-[32px]">
-                                아직 올라온 소식이 없습니다.
-                            </div>
-                        )
-                    )}
-                </div>
-            </section>
-        </div>
+  const summary = useMemo(() => {
+    return visibleStatuses.reduce(
+      (acc, item) => {
+        acc[getDecisionStatus(item.status, item.is_request)] += 1;
+        return acc;
+      },
+      { crowded: 0, normal: 0, quiet: 0 },
     );
+  }, [visibleStatuses]);
+
+  const liveBoardItems = useMemo(() => {
+    return [...visibleStatuses].sort(sortByRecent).slice(0, 5);
+  }, [visibleStatuses]);
+
+  return (
+    <div className="min-h-screen bg-background pb-32 pt-10 text-foreground">
+      <header className="mb-7 px-5">
+        <p className="text-[11px] font-black uppercase text-secondary">Dongple Now</p>
+        <h1 className="mt-1 text-3xl font-black">지금 어디가 살아있을까?</h1>
+      </header>
+
+      <main className="space-y-8">
+        {isLoading ? (
+          <DecisionSkeleton />
+        ) : (
+          <>
+            <CardSlider
+              icon={<Flame size={18} />}
+              title="지금 붐비는 곳"
+              emptyTitle="아직 붐빈 곳이 없어요"
+              emptyDescription="지금 주변 상태를 공유해보세요"
+            >
+              {crowdedPlaces.map((item) => (
+                <PlaceSliderCard key={item.id} item={item} />
+              ))}
+            </CardSlider>
+
+            <CardSlider
+              icon={<Smile size={18} />}
+              title="지금 가기 좋은 곳"
+              emptyTitle="아직 한산한 곳이 없어요"
+              emptyDescription="주변을 확인해볼까요?"
+            >
+              {goodPlaces.map((item) => (
+                <PlaceSliderCard key={item.id} item={item} />
+              ))}
+            </CardSlider>
+
+            <CardSlider
+              icon={<PartyPopper size={18} />}
+              title="오늘 행사 상황"
+              emptyTitle="오늘 행사가 없어요"
+              emptyDescription="지도에서 주변 상태를 먼저 확인해보세요"
+            >
+              {eventCards.map(({ event, status }) => (
+                <EventSliderCard key={event.id} event={event} status={status} />
+              ))}
+            </CardSlider>
+
+            <section className="px-5">
+              <StatusSummary summary={summary} />
+            </section>
+
+            <section className="px-5">
+              <LiveSituationBoard items={liveBoardItems} />
+            </section>
+          </>
+        )}
+
+        <div className="px-5">
+          <Link
+            href="/map?view=all"
+            className="flex h-14 items-center justify-center rounded-2xl bg-foreground text-sm font-black text-background shadow-xl"
+          >
+            <MapPinned size={18} className="mr-2" />
+            지도에서 전체 보기
+            <ArrowRight size={18} className="ml-2" />
+          </Link>
+        </div>
+      </main>
+    </div>
+  );
 }
 
-function FeedItem({ post, mode, onClick }: { post: Post, mode: "grid" | "list", onClick: () => void }) {
-    return (
-        <motion.div
-            whileHover={{ y: -4 }}
-            className={`bg-card-bg rounded-[24px] p-5 shadow-sm border border-border cursor-pointer transition-colors duration-500 flex flex-col`}
-            onClick={onClick}
-        >
-            <div className="flex items-center justify-between mb-3">
-                <TrustBadge score={post.score || 0.5} />
-                <span className="text-[10px] text-foreground/40 font-bold">
-                    {new Date(post.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                </span>
-            </div>
-            
-            <h3 className="text-[15px] font-black text-foreground mb-2 leading-tight line-clamp-2">
-                {post.title || post.content}
-            </h3>
-            
-            <div className="flex items-center mt-auto space-x-3 text-[10px] text-foreground/40 font-bold">
-                <span className="flex items-center">
-                    <TrendingUp size={10} className="mr-0.5 text-secondary" /> {post.likes_count}
-                </span>
-                <span>{post.comments_count} 댓글</span>
-                <span className="flex-1 text-right text-[9px] text-foreground/20">#{post.category}</span>
-            </div>
-        </motion.div>
-    );
+function CardSlider({
+  icon,
+  title,
+  emptyTitle,
+  emptyDescription,
+  children,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  emptyTitle: string;
+  emptyDescription: string;
+  children: React.ReactNode;
+}) {
+  const hasCards = Boolean(children) && !(Array.isArray(children) && children.length === 0);
+
+  return (
+    <section className="space-y-3">
+      <SectionTitle icon={icon} title={title} />
+      <div className="flex snap-x snap-mandatory gap-4 overflow-x-auto px-5 pb-2 no-scrollbar">
+        {hasCards ? (
+          children
+        ) : (
+          <EmptySliderCard title={emptyTitle} description={emptyDescription} />
+        )}
+      </div>
+    </section>
+  );
+}
+
+function SectionTitle({ icon, title }: { icon: React.ReactNode; title: string }) {
+  return (
+    <div className="flex items-center space-x-2 px-5 text-lg font-black">
+      <span className="text-secondary">{icon}</span>
+      <h2>{title}</h2>
+    </div>
+  );
+}
+
+function PlaceSliderCard({ item }: { item: StatusItem }) {
+  const decision = getDecisionStatus(item.status, item.is_request);
+  const status = getStatusMeta(decision);
+  const tags = getTags(item);
+
+  return (
+    <article className={`min-w-[84%] snap-start rounded-[28px] border p-5 shadow-sm ${status.cardClass}`}>
+      <Link href={getStatusMapHref(item)} className="block">
+        <h3 className="truncate text-2xl font-black">{item.place_name}</h3>
+        <StatusLine decision={decision} createdAt={item.created_at} />
+        <TagRow tags={tags} />
+      </Link>
+      <MapButton href={getStatusMapHref(item)} />
+    </article>
+  );
+}
+
+function EventSliderCard({ event, status }: { event: OfficialEvent; status?: StatusItem }) {
+  const decision = status ? getDecisionStatus(status.status, status.is_request) : "normal";
+  const tags = status ? getTags(status) : ["아직 현장 공유 없음"];
+  const href = status ? getStatusMapHref(status) : `/map?place_id=${encodeURIComponent(String(event.id))}`;
+
+  return (
+    <article className="min-w-[84%] snap-start rounded-[28px] border border-border bg-card-bg p-5 shadow-sm">
+      <Link href={href} className="block">
+        <div className="mb-2 flex items-center gap-2">
+          <PartyPopper size={18} className="shrink-0 text-secondary" />
+          <h3 className="truncate text-2xl font-black">{event.title}</h3>
+        </div>
+        {status ? (
+          <StatusLine decision={decision} createdAt={status.created_at} />
+        ) : (
+          <p className="mt-3 text-sm font-black text-foreground/50">아직 현장 공유 없음</p>
+        )}
+        <TagRow tags={tags} />
+      </Link>
+      <MapButton href={href} label={status ? "지도 보기" : "첫 상태 남기기"} />
+    </article>
+  );
+}
+
+function MapButton({ href, label = "지도 보기" }: { href: string; label?: string }) {
+  return (
+    <Link
+      href={href}
+      className="mt-5 flex h-11 w-full items-center justify-center rounded-xl bg-white text-sm font-black text-foreground shadow-sm"
+    >
+      {label}
+      <ArrowRight size={15} className="ml-1.5" />
+    </Link>
+  );
+}
+
+function EmptySliderCard({ title, description }: { title: string; description: string }) {
+  return (
+    <div className="min-w-[84%] snap-start rounded-[28px] border border-dashed border-border bg-foreground/[0.02] p-5">
+      <h3 className="text-xl font-black text-foreground/70">{title}</h3>
+      <p className="mt-2 text-sm font-bold text-foreground/40">{description}</p>
+      <MapButton href="/map?view=all" label="지도에서 확인" />
+    </div>
+  );
+}
+
+function StatusSummary({ summary }: { summary: Record<DecisionStatus, number> }) {
+  const total = Math.max(summary.crowded + summary.normal + summary.quiet, 1);
+
+  return (
+    <section className="rounded-[24px] border border-border bg-card-bg p-5">
+      <div className="mb-4 flex items-center justify-between">
+        <div className="flex items-center space-x-2">
+          <Navigation size={18} className="text-secondary" />
+          <h2 className="text-lg font-black">내 주변 상태 요약</h2>
+        </div>
+        <span className="text-xs font-bold text-foreground/45">최근 업데이트</span>
+      </div>
+
+      <div className="mb-4 flex h-3 overflow-hidden rounded-full bg-foreground/5">
+        <div className="bg-[#ff4d4f]" style={{ width: `${(summary.crowded / total) * 100}%` }} />
+        <div className="bg-[#faad14]" style={{ width: `${(summary.normal / total) * 100}%` }} />
+        <div className="bg-[#52c41a]" style={{ width: `${(summary.quiet / total) * 100}%` }} />
+      </div>
+
+      <div className="grid grid-cols-3 gap-2 text-center">
+        <SummaryCount label="붐빔" value={summary.crowded} color="#ff4d4f" />
+        <SummaryCount label="보통" value={summary.normal} color="#faad14" />
+        <SummaryCount label="한산" value={summary.quiet} color="#52c41a" />
+      </div>
+    </section>
+  );
+}
+
+function LiveSituationBoard({ items }: { items: StatusItem[] }) {
+  return (
+    <section className="rounded-[24px] border border-border bg-card-bg p-5">
+      <div className="mb-4 flex items-center space-x-2">
+        <Radio size={18} className="text-secondary" />
+        <h2 className="text-lg font-black">지금 올라오는 상황</h2>
+      </div>
+      <div className="space-y-3">
+        {items.map((item) => {
+          const decision = getDecisionStatus(item.status, item.is_request);
+          const status = getStatusMeta(decision);
+
+          return (
+            <Link
+              key={item.id}
+              href={getStatusMapHref(item)}
+              className="flex items-center justify-between rounded-2xl bg-foreground/[0.03] px-4 py-3"
+            >
+              <div className="min-w-0">
+                <p className="truncate text-sm font-black">{item.place_name}</p>
+                <p className="mt-1 text-xs font-bold text-foreground/45">
+                  <span style={{ color: status.color }}>{status.label}</span> · {getTimeAgo(item.created_at)}
+                </p>
+              </div>
+              <ArrowRight size={16} className="shrink-0 text-foreground/35" />
+            </Link>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+function SummaryCount({ label, value, color }: { label: string; value: number; color: string }) {
+  return (
+    <div className="rounded-2xl bg-foreground/[0.03] px-3 py-3">
+      <div className="mx-auto mb-1 h-2 w-2 rounded-full" style={{ backgroundColor: color }} />
+      <p className="text-xl font-black">{value}</p>
+      <p className="text-[11px] font-bold text-foreground/50">{label}</p>
+    </div>
+  );
+}
+
+function StatusLine({ decision, createdAt }: { decision: DecisionStatus; createdAt?: string }) {
+  const status = getStatusMeta(decision);
+
+  return (
+    <div className="mt-3">
+      <div className="flex items-center text-base font-black" style={{ color: status.color }}>
+        <span className="mr-2 h-2.5 w-2.5 rounded-full" style={{ backgroundColor: status.color }} />
+        지금 {status.label}
+      </div>
+      <p className="mt-1 text-xs font-bold text-foreground/45">{getTimeAgo(createdAt)} 업데이트</p>
+    </div>
+  );
+}
+
+function TagRow({ tags }: { tags: string[] }) {
+  return (
+    <div className="mt-4 flex flex-wrap gap-2">
+      {tags.slice(0, 3).map((tag) => (
+        <span key={tag} className="rounded-full bg-white/80 px-3 py-1 text-[12px] font-bold text-foreground/65">
+          {tag}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function DecisionSkeleton() {
+  return (
+    <div className="space-y-6 px-5">
+      {[1, 2, 3].map((item) => (
+        <div key={item} className="h-40 animate-pulse rounded-[28px] bg-foreground/5" />
+      ))}
+    </div>
+  );
+}
+
+function getDecisionStatus(status: string, isRequest?: boolean): DecisionStatus {
+  if (isRequest) return "normal";
+  if (["혼잡", "붐빔", "많음", "답변대기"].includes(status)) return "crowded";
+  if (["여유", "한산"].includes(status)) return "quiet";
+  return "normal";
+}
+
+function getStatusMeta(status: DecisionStatus) {
+  if (status === "crowded") {
+    return { label: "붐빔", color: "#ff4d4f", cardClass: "border-red-100 bg-red-50/80 shadow-red-900/5" };
+  }
+
+  if (status === "quiet") {
+    return { label: "한산", color: "#52c41a", cardClass: "border-green-100 bg-green-50/80 shadow-green-900/5" };
+  }
+
+  return { label: "보통", color: "#faad14", cardClass: "border-yellow-100 bg-yellow-50/80 shadow-yellow-900/5" };
+}
+
+function getTags(item?: StatusItem) {
+  const source = item?.history?.[0]?.text || item?.message || "";
+  const tags = source
+    .split(/[\/,·|]/)
+    .map((tag) => tag.trim())
+    .filter(Boolean);
+
+  if (tags.length > 0) return tags;
+
+  const decision = item ? getDecisionStatus(item.status, item.is_request) : "normal";
+  if (decision === "crowded") return ["대기 김", "사람 많음"];
+  if (decision === "quiet") return ["조용함", "자리 있음"];
+  return ["무난함", "확인됨"];
+}
+
+function getTimeAgo(createdAt?: string) {
+  if (!createdAt) return "방금 전";
+
+  const diffMs = Date.now() - new Date(createdAt).getTime();
+  const diffMin = Math.max(0, Math.floor(diffMs / 60000));
+
+  if (diffMin < 1) return "방금 전";
+  if (diffMin < 60) return `${diffMin}분 전`;
+
+  const diffHour = Math.floor(diffMin / 60);
+  if (diffHour < 24) return `${diffHour}시간 전`;
+
+  return `${Math.floor(diffHour / 24)}일 전`;
+}
+
+function getStatusMapHref(item?: StatusItem) {
+  if (!item?.id || item.id.startsWith("fallback-")) {
+    return `/map?q=${encodeURIComponent(item?.place_name ?? "")}`;
+  }
+
+  return `/map?place_id=${encodeURIComponent(item.id)}`;
+}
+
+function sortCrowded(a: StatusItem, b: StatusItem) {
+  return sortByRecent(a, b) || (b.verified_count ?? 0) - (a.verified_count ?? 0);
+}
+
+function sortGoodPlace(a: StatusItem, b: StatusItem) {
+  const tagDiff = countPositiveTags(b) - countPositiveTags(a);
+  if (tagDiff !== 0) return tagDiff;
+  return sortByRecent(a, b);
+}
+
+function countPositiveTags(item: StatusItem) {
+  const text = getTags(item).join(" ");
+  return positiveTags.filter((tag) => text.includes(tag)).length;
+}
+
+function sortByRecent(a: StatusItem, b: StatusItem) {
+  return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
 }
