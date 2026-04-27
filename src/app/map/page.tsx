@@ -41,9 +41,9 @@ const CATEGORIES = [
     { id: "기관", label: "기관", icon: Building2 },
 ];
 
-const SHEET_COLLAPSED_HEIGHT = 18;
-const SHEET_MID_HEIGHT = 52;
-const SHEET_EXPANDED_HEIGHT = 74;
+const SHEET_COLLAPSED_HEIGHT = 20;
+const SHEET_MID_HEIGHT = 50;
+const SHEET_EXPANDED_HEIGHT = 85;
 
 function MapContent() {
     const router = useRouter();
@@ -156,7 +156,7 @@ function MapContent() {
 
         const currentHeight = dragHeight.current;
         if (currentHeight > 64) setSheetHeight(SHEET_EXPANDED_HEIGHT);
-        else if (currentHeight > 32) setSheetHeight(SHEET_MID_HEIGHT);
+        else if (currentHeight > 35) setSheetHeight(SHEET_MID_HEIGHT);
         else setSheetHeight(SHEET_COLLAPSED_HEIGHT);
     };
 
@@ -165,7 +165,7 @@ function MapContent() {
         setSheetHeight(height);
     };
 
-    const moveCameraTo = (lat: number, lng: number, sheetOffset = 0.22) => {
+    const moveCameraTo = (lat: number, lng: number, sheetOffset = 0.25) => {
         if (!mapRef.current || !window.naver?.maps) return;
 
         const map = mapRef.current;
@@ -210,8 +210,8 @@ function MapContent() {
     const scrollCardIntoView = (id: string) => {
         window.setTimeout(() => {
             const el = document.getElementById(`card-${id}`);
-            if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
-        }, 420);
+            if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+        }, 100);
     };
 
     const handleSearch = async (initialQuery?: string) => {
@@ -535,15 +535,17 @@ function MapContent() {
                     setExpandedCardId(expandedCardId === id ? null : id);
                     if (expandedCardId !== id && mapRef.current) {
                         const map = mapRef.current;
+                        map.setZoom(17);
                         const proj = map.getProjection();
                         const targetPixel = proj.fromCoordToOffset(new window.naver.maps.LatLng(lat, lng));
-                        // 이동하려는 타겟을 화면 중심보다 20% 위로 올려 바텀시트에 안 가려지도록 보정
-                        targetPixel.y -= window.innerHeight * 0.2; 
+                        // 이동하려는 타겟을 화면 중심보다 25% 위로 올려 바텀시트에 안 가려지도록 보정
+                        targetPixel.y -= window.innerHeight * 0.25; 
                         const correctedCenter = proj.fromOffsetToCoord(targetPixel);
                         
                         map.panTo(correctedCenter);
                         snapSheetTo(SHEET_MID_HEIGHT);
                         setClickedLatLng(null);
+                        scrollCardIntoView(id);
                     }
                 }}
                 onOpenCreate={(mode) => {

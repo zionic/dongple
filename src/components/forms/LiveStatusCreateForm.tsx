@@ -22,7 +22,7 @@ const CATEGORIES = [
 
 const statusOptions = [
     { 
-        label: "여유", 
+        label: "한산", 
         color: "bg-green-50 text-green-700 border-green-100", 
         activeColor: "bg-green-500 text-white border-green-500 shadow-lg shadow-green-500/20",
         badgeColor: "text-green-500" 
@@ -34,7 +34,7 @@ const statusOptions = [
         badgeColor: "text-blue-500" 
     },
     { 
-        label: "혼잡", 
+        label: "붐빔", 
         color: "bg-red-50 text-red-700 border-red-100", 
         activeColor: "bg-red-500 text-white border-red-500 shadow-lg shadow-red-500/20",
         badgeColor: "text-red-500" 

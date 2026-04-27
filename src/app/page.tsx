@@ -131,9 +131,9 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-background pb-32 pt-10 text-foreground">
-      <header className="mb-7 px-5">
-        <p className="text-[11px] font-black uppercase text-secondary">Dongple Now</p>
-        <h1 className="mt-1 text-3xl font-black">지금 어디가 살아있을까?</h1>
+      <header className="mb-8 px-5">
+        <p className="text-[12px] font-black tracking-wider text-secondary">DONGPLE NOW</p>
+        <h1 className="mt-1 text-3xl font-black tracking-tight">지금 어디가 살아있을까?</h1>
       </header>
 
       <main className="space-y-8">
@@ -215,9 +215,9 @@ function CardSlider({
   const hasCards = Boolean(children) && !(Array.isArray(children) && children.length === 0);
 
   return (
-    <section className="space-y-3">
+    <section className="space-y-4">
       <SectionTitle icon={icon} title={title} />
-      <div className="flex snap-x snap-mandatory gap-4 overflow-x-auto px-5 pb-2 no-scrollbar">
+      <div className="flex snap-x snap-mandatory gap-4 overflow-x-auto px-5 pb-4 pt-1 no-scrollbar">
         {hasCards ? (
           children
         ) : (
@@ -230,7 +230,7 @@ function CardSlider({
 
 function SectionTitle({ icon, title }: { icon: React.ReactNode; title: string }) {
   return (
-    <div className="flex items-center space-x-2 px-5 text-lg font-black">
+    <div className="flex items-center space-x-2 px-5 text-xl font-black tracking-tight">
       <span className="text-secondary">{icon}</span>
       <h2>{title}</h2>
     </div>
@@ -243,9 +243,9 @@ function PlaceSliderCard({ item }: { item: StatusItem }) {
   const tags = getTags(item);
 
   return (
-    <article className={`min-w-[84%] snap-start rounded-[28px] border p-5 shadow-sm ${status.cardClass}`}>
+    <article className={`min-w-[84%] shrink-0 snap-start rounded-[28px] border p-5 transition-transform active:scale-[0.99] ${status.cardClass}`}>
       <Link href={getStatusMapHref(item)} className="block">
-        <h3 className="truncate text-2xl font-black">{item.place_name}</h3>
+        <h3 className="truncate text-2xl font-black tracking-tight">{item.place_name}</h3>
         <StatusLine decision={decision} createdAt={item.created_at} />
         <TagRow tags={tags} />
       </Link>
@@ -258,18 +258,19 @@ function EventSliderCard({ event, status }: { event: OfficialEvent; status?: Sta
   const decision = status ? getDecisionStatus(status.status, status.is_request) : "normal";
   const tags = status ? getTags(status) : ["아직 현장 공유 없음"];
   const href = status ? getStatusMapHref(status) : `/map?place_id=${encodeURIComponent(String(event.id))}`;
+  const statusMeta = status ? getStatusMeta(decision) : { cardClass: "border-border/60 bg-foreground/[0.03] shadow-lg backdrop-blur-2xl" };
 
   return (
-    <article className="min-w-[84%] snap-start rounded-[28px] border border-border bg-card-bg p-5 shadow-sm">
+    <article className={`min-w-[84%] shrink-0 snap-start rounded-[28px] border p-5 transition-transform active:scale-[0.99] ${statusMeta.cardClass}`}>
       <Link href={href} className="block">
         <div className="mb-2 flex items-center gap-2">
           <PartyPopper size={18} className="shrink-0 text-secondary" />
-          <h3 className="truncate text-2xl font-black">{event.title}</h3>
+          <h3 className="truncate text-2xl font-black tracking-tight">{event.title}</h3>
         </div>
         {status ? (
           <StatusLine decision={decision} createdAt={status.created_at} />
         ) : (
-          <p className="mt-3 text-sm font-black text-foreground/50">아직 현장 공유 없음</p>
+          <p className="mt-3 text-[15px] font-black text-foreground/50">아직 현장 공유 없음</p>
         )}
         <TagRow tags={tags} />
       </Link>
@@ -282,19 +283,19 @@ function MapButton({ href, label = "지도 보기" }: { href: string; label?: st
   return (
     <Link
       href={href}
-      className="mt-5 flex h-11 w-full items-center justify-center rounded-xl bg-white text-sm font-black text-foreground shadow-sm"
+      className="mt-5 flex h-12 w-full items-center justify-center rounded-2xl bg-background/80 text-[15px] font-black text-foreground shadow-sm backdrop-blur-sm transition-all active:scale-[0.98]"
     >
       {label}
-      <ArrowRight size={15} className="ml-1.5" />
+      <ArrowRight size={16} className="ml-1.5" />
     </Link>
   );
 }
 
 function EmptySliderCard({ title, description }: { title: string; description: string }) {
   return (
-    <div className="min-w-[84%] snap-start rounded-[28px] border border-dashed border-border bg-foreground/[0.02] p-5">
+    <div className="flex min-w-[84%] shrink-0 snap-start flex-col justify-center rounded-[28px] border border-dashed border-border/60 bg-foreground/[0.02] shadow-lg backdrop-blur-2xl p-6">
       <h3 className="text-xl font-black text-foreground/70">{title}</h3>
-      <p className="mt-2 text-sm font-bold text-foreground/40">{description}</p>
+      <p className="mt-2 text-[14px] font-bold text-foreground/45">{description}</p>
       <MapButton href="/map?view=all" label="지도에서 확인" />
     </div>
   );
@@ -304,25 +305,25 @@ function StatusSummary({ summary }: { summary: Record<DecisionStatus, number> })
   const total = Math.max(summary.crowded + summary.normal + summary.quiet, 1);
 
   return (
-    <section className="rounded-[24px] border border-border bg-card-bg p-5">
-      <div className="mb-4 flex items-center justify-between">
+    <section className="rounded-[24px] border border-border bg-card-bg p-5 shadow-sm">
+      <div className="mb-5 flex items-center justify-between">
         <div className="flex items-center space-x-2">
-          <Navigation size={18} className="text-secondary" />
-          <h2 className="text-lg font-black">내 주변 상태 요약</h2>
+          <Navigation size={20} className="text-secondary" />
+          <h2 className="text-xl font-black tracking-tight">내 주변 상태 요약</h2>
         </div>
-        <span className="text-xs font-bold text-foreground/45">최근 업데이트</span>
+        <span className="rounded-md bg-foreground/5 px-2 py-1 text-[12px] font-bold text-foreground/40">최근 업데이트</span>
       </div>
 
-      <div className="mb-4 flex h-3 overflow-hidden rounded-full bg-foreground/5">
-        <div className="bg-[#ff4d4f]" style={{ width: `${(summary.crowded / total) * 100}%` }} />
-        <div className="bg-[#faad14]" style={{ width: `${(summary.normal / total) * 100}%` }} />
-        <div className="bg-[#52c41a]" style={{ width: `${(summary.quiet / total) * 100}%` }} />
+      <div className="mb-6 flex h-3.5 overflow-hidden rounded-full bg-foreground/5">
+        <div className="bg-[#ff4d4f] transition-all duration-1000" style={{ width: `${(summary.crowded / total) * 100}%` }} />
+        <div className="bg-[#faad14] transition-all duration-1000" style={{ width: `${(summary.normal / total) * 100}%` }} />
+        <div className="bg-[#52c41a] transition-all duration-1000" style={{ width: `${(summary.quiet / total) * 100}%` }} />
       </div>
 
-      <div className="grid grid-cols-3 gap-2 text-center">
-        <SummaryCount label="붐빔" value={summary.crowded} color="#ff4d4f" />
-        <SummaryCount label="보통" value={summary.normal} color="#faad14" />
-        <SummaryCount label="한산" value={summary.quiet} color="#52c41a" />
+      <div className="grid grid-cols-3 gap-3 text-center">
+        <SummaryCount label="붐빔" value={summary.crowded} color="#ff4d4f" bgClass="bg-red-500/10" textClass="text-[#ff4d4f]" />
+        <SummaryCount label="보통" value={summary.normal} color="#faad14" bgClass="bg-yellow-500/10" textClass="text-[#faad14]" />
+        <SummaryCount label="한산" value={summary.quiet} color="#52c41a" bgClass="bg-green-500/10" textClass="text-[#52c41a]" />
       </div>
     </section>
   );
@@ -330,10 +331,10 @@ function StatusSummary({ summary }: { summary: Record<DecisionStatus, number> })
 
 function LiveSituationBoard({ items }: { items: StatusItem[] }) {
   return (
-    <section className="rounded-[24px] border border-border bg-card-bg p-5">
-      <div className="mb-4 flex items-center space-x-2">
-        <Radio size={18} className="text-secondary" />
-        <h2 className="text-lg font-black">지금 올라오는 상황</h2>
+    <section className="rounded-[24px] border border-border bg-card-bg p-5 shadow-sm">
+      <div className="mb-5 flex items-center space-x-2">
+        <Radio size={20} className="animate-pulse text-secondary" />
+        <h2 className="text-xl font-black tracking-tight">지금 올라오는 상황</h2>
       </div>
       <div className="space-y-3">
         {items.map((item) => {
@@ -344,15 +345,18 @@ function LiveSituationBoard({ items }: { items: StatusItem[] }) {
             <Link
               key={item.id}
               href={getStatusMapHref(item)}
-              className="flex items-center justify-between rounded-2xl bg-foreground/[0.03] px-4 py-3"
+              className="group flex items-center justify-between rounded-2xl bg-foreground/[0.02] px-4 py-3.5 transition-colors hover:bg-foreground/[0.04] active:scale-[0.99]"
             >
               <div className="min-w-0">
-                <p className="truncate text-sm font-black">{item.place_name}</p>
-                <p className="mt-1 text-xs font-bold text-foreground/45">
-                  <span style={{ color: status.color }}>{status.label}</span> · {getTimeAgo(item.created_at)}
-                </p>
+                <p className="truncate text-[15px] font-black">{item.place_name}</p>
+                <div className="mt-1 flex items-center text-[13px] font-bold text-foreground/50">
+                  <span className="mr-1.5 flex h-2 w-2 rounded-full" style={{ backgroundColor: status.color }} />
+                  <span style={{ color: status.color }}>{status.label}</span>
+                  <span className="mx-1.5 opacity-40">·</span>
+                  <span>{getTimeAgo(item.created_at)}</span>
+                </div>
               </div>
-              <ArrowRight size={16} className="shrink-0 text-foreground/35" />
+              <ArrowRight size={18} className="shrink-0 text-foreground/20 transition-transform group-hover:translate-x-1 group-hover:text-foreground/40" />
             </Link>
           );
         })}
@@ -361,12 +365,12 @@ function LiveSituationBoard({ items }: { items: StatusItem[] }) {
   );
 }
 
-function SummaryCount({ label, value, color }: { label: string; value: number; color: string }) {
+function SummaryCount({ label, value, color, bgClass, textClass }: { label: string; value: number; color: string; bgClass: string; textClass: string }) {
   return (
-    <div className="rounded-2xl bg-foreground/[0.03] px-3 py-3">
-      <div className="mx-auto mb-1 h-2 w-2 rounded-full" style={{ backgroundColor: color }} />
-      <p className="text-xl font-black">{value}</p>
-      <p className="text-[11px] font-bold text-foreground/50">{label}</p>
+    <div className={`rounded-2xl ${bgClass} p-3`}>
+      <div className="mx-auto mb-1.5 h-2.5 w-2.5 rounded-full" style={{ backgroundColor: color }} />
+      <p className={`text-2xl font-black ${textClass}`}>{value}</p>
+      <p className={`text-[12px] font-bold ${textClass} opacity-80`}>{label}</p>
     </div>
   );
 }
@@ -375,21 +379,24 @@ function StatusLine({ decision, createdAt }: { decision: DecisionStatus; created
   const status = getStatusMeta(decision);
 
   return (
-    <div className="mt-3">
-      <div className="flex items-center text-base font-black" style={{ color: status.color }}>
-        <span className="mr-2 h-2.5 w-2.5 rounded-full" style={{ backgroundColor: status.color }} />
+    <div className="mt-4 flex flex-col gap-1">
+      <div className="flex items-center text-lg font-black tracking-tight" style={{ color: status.color }}>
+        <div className="relative mr-2 flex h-3 w-3 items-center justify-center">
+          <span className="absolute inline-flex h-full w-full animate-ping rounded-full opacity-75" style={{ backgroundColor: status.color }} />
+          <span className="relative inline-flex h-2.5 w-2.5 rounded-full" style={{ backgroundColor: status.color }} />
+        </div>
         지금 {status.label}
       </div>
-      <p className="mt-1 text-xs font-bold text-foreground/45">{getTimeAgo(createdAt)} 업데이트</p>
+      <p className="text-[13px] font-bold text-foreground/50">{getTimeAgo(createdAt)} 업데이트</p>
     </div>
   );
 }
 
 function TagRow({ tags }: { tags: string[] }) {
   return (
-    <div className="mt-4 flex flex-wrap gap-2">
+    <div className="mt-4 flex flex-wrap gap-1.5">
       {tags.slice(0, 3).map((tag) => (
-        <span key={tag} className="rounded-full bg-white/80 px-3 py-1 text-[12px] font-bold text-foreground/65">
+        <span key={tag} className="rounded-md bg-background/60 px-2.5 py-1 text-[13px] font-bold text-foreground/70">
           {tag}
         </span>
       ))}
@@ -416,14 +423,14 @@ function getDecisionStatus(status: string, isRequest?: boolean): DecisionStatus 
 
 function getStatusMeta(status: DecisionStatus) {
   if (status === "crowded") {
-    return { label: "붐빔", color: "#ff4d4f", cardClass: "border-red-100 bg-red-50/80 shadow-red-900/5" };
+    return { label: "붐빔", color: "#ff4d4f", cardClass: "border-red-500/30 bg-red-500/15 shadow-lg shadow-red-500/20 backdrop-blur-2xl" };
   }
 
   if (status === "quiet") {
-    return { label: "한산", color: "#52c41a", cardClass: "border-green-100 bg-green-50/80 shadow-green-900/5" };
+    return { label: "한산", color: "#52c41a", cardClass: "border-green-500/30 bg-green-500/15 shadow-lg shadow-green-500/20 backdrop-blur-2xl" };
   }
 
-  return { label: "보통", color: "#faad14", cardClass: "border-yellow-100 bg-yellow-50/80 shadow-yellow-900/5" };
+  return { label: "보통", color: "#faad14", cardClass: "border-yellow-500/30 bg-yellow-500/15 shadow-lg shadow-yellow-500/20 backdrop-blur-2xl" };
 }
 
 function getTags(item?: StatusItem) {

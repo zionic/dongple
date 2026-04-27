@@ -60,6 +60,7 @@ export default function BottomSheet() {
     if (isBottomSheetOpen) {
       if (bottomSheetContent === "postDetail") setSheetHeight(85);
       else if (bottomSheetContent === "write") setSheetHeight(90);
+      else if (bottomSheetContent === "liveCreate") setSheetHeight(95);
       else setSheetHeight(50);
     }
   }, [isBottomSheetOpen, bottomSheetContent]);
@@ -567,9 +568,9 @@ function LiveReplyForm() {
     const [replyText, setReplyText] = useState("");
 
     const statusOptions = [
-        { label: "여유", color: "bg-green-100 text-green-700 hover:bg-green-200 border-green-200" },
+        { label: "한산", color: "bg-green-100 text-green-700 hover:bg-green-200 border-green-200" },
         { label: "보통", color: "bg-yellow-100 text-yellow-700 hover:bg-yellow-200 border-yellow-200" },
-        { label: "혼잡", color: "bg-red-100 text-red-700 hover:bg-red-200 border-red-200" }
+        { label: "붐빔", color: "bg-red-100 text-red-700 hover:bg-red-200 border-red-200" }
     ];
 
     const handleSubmit = () => {
