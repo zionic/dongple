@@ -86,28 +86,9 @@ const allItems = [
                 onPointerDown={onPointerDown} 
                 onPointerMove={onPointerMove} 
                 onPointerUp={onPointerUp}
+                onClick={() => onSnapToHeight(isExpanded ? 20 : 85)}
             >
-                <div className="w-12 h-1.5 bg-foreground/15 rounded-full mb-3" />
-                <div className="w-full px-6 mb-3 flex items-center justify-center gap-2">
-                    <SizeButton
-                        label="작게"
-                        active={sheetHeight <= 24}
-                        onClick={() => onSnapToHeight(18)}
-                        icon={<ChevronsDown size={16} />}
-                    />
-                    <SizeButton
-                        label="중간"
-                        active={sheetHeight > 24 && !isExpanded}
-                        onClick={() => onSnapToHeight(52)}
-                        icon={<Minus size={16} />}
-                    />
-                    <SizeButton
-                        label="크게"
-                        active={isExpanded}
-                        onClick={() => onSnapToHeight(74)}
-                        icon={<ChevronsUp size={16} />}
-                    />
-                </div>
+                <div style={{ width: '40px', height: '5px', backgroundColor: '#d1d5db', borderRadius: '9999px', marginBottom: '16px' }} />
                 <div className="w-full px-6 flex items-center justify-between">
                     <div className="flex flex-col">
                         <span className="text-[11px] font-black text-secondary tracking-widest uppercase mb-1">DONGPLE LIVE</span>
@@ -119,14 +100,11 @@ const allItems = [
                          <button onPointerDown={(e) => e.stopPropagation()} onClick={() => onOpenCreate("request")} className="p-3 bg-foreground/5 rounded-2xl text-foreground/40 hover:text-foreground transition-all" aria-label="상황 요청">
                              <HelpCircle size={22} />
                          </button>
-                         <button onPointerDown={(e) => e.stopPropagation()} onClick={() => onOpenCreate("share")} className="p-3 bg-secondary text-white rounded-2xl shadow-lg shadow-secondary/30 transition-all" aria-label="지금 상태 공유">
-                             <Plus size={22} />
-                         </button>
                     </div>
                 </div>
             </div>
 
-            <div className="px-6 py-4 overflow-y-auto space-y-4 flex-1 pb-32 no-scrollbar">
+            <div id="sheet-scroll-container" className="px-6 py-4 overflow-y-auto space-y-4 flex-1 pb-32 no-scrollbar">
                 {allItems.length > 0 ? allItems.map(card => {
                     const statusTheme = getStatusTheme(card);
 
@@ -135,43 +113,29 @@ const allItems = [
                         key={`${card.isOfficial ? 'off' : 'live'}-${card.id}`} 
                         id={`card-${card.id}`} 
                         onClick={() => onCardClick(card.id, card.latitude || card.lat || 37.3015, card.longitude || card.lng || 126.9930)} 
-                        className={`p-6 rounded-[32px] border border-border bg-card-bg/50 transition-all duration-500 ${expandedCardId === card.id ? 'ring-4 ring-secondary/5 bg-card-bg border-secondary/20 shadow-2xl' : ''}`}
+                        className={`p-4 rounded-3xl border border-border bg-card-bg/50 transition-all duration-500 ${expandedCardId === card.id ? 'ring-4 ring-secondary/5 bg-card-bg border-secondary/20 shadow-2xl' : ''}`}
                     >
-                        <div className="flex items-start justify-between">
-                            <div className="flex-1">
-                                <div className="flex items-center space-x-2 mb-2">
-                                    <span className={`text-[10px] font-black uppercase tracking-widest ${card.isOfficial ? 'text-secondary' : 'text-foreground/40'}`}>
-                                        {card.isOfficial ? "OFFICIAL" : card.category}
-                                    </span>
-                                    {card.message && <span className="text-[10px] font-black text-secondary uppercase animate-pulse">상세있음</span>}
-                                    
-                                    {/* 고도화: 편한 접근/반려동물 동반 태그 */}
-                                    {card.meta?.barrierFree && (
-                                        <span className="bg-blue-50 text-blue-500 px-2 py-0.5 rounded-full text-[9px] font-black">♿ 편한 접근</span>
-                                    )}
-                                    {card.meta?.petFriendly && (
-                                        <span className="bg-green-50 text-green-500 px-2 py-0.5 rounded-full text-[9px] font-black">🐶 반려동물 동반</span>
-                                    )}
-
-                                    {/* 신뢰도 뱃지 추가 */}
-                                    <TrustBadge score={card.score || 0.5} isOfficial={card.isOfficial} />
-                                </div>
-                                <div className="flex items-center gap-2 mb-2">
-                                    <h4 className="font-black text-foreground text-[18px] leading-tight-none">{card.place_name}</h4>
-                                    <span className="text-[11px] font-black text-secondary bg-secondary/10 px-2 py-0.5 rounded-lg shrink-0">
-                                        {card.distanceStr}
-                                    </span>
-                                </div>
-                                <div className={`inline-flex items-center rounded-full px-2.5 py-1 text-[13px] font-black ${statusTheme.text} ${statusTheme.bg}`}>
-                                    <div className={`w-2 h-2 rounded-full mr-1.5 ${statusTheme.dot} ${expandedCardId === card.id ? 'animate-ping' : ''}`} />
+                        <div className="space-y-2.5">
+                            <div className="flex min-w-0 items-center gap-2 whitespace-nowrap">
+                                <h4 className="min-w-0 flex-1 truncate font-black text-foreground text-[17px] leading-tight">{card.place_name}</h4>
+                                <div className={`inline-flex shrink-0 items-center rounded-full px-2.5 py-1 text-[12px] font-black ${statusTheme.text} ${statusTheme.bg}`}>
+                                        <div className={`w-2 h-2 rounded-full mr-1.5 ${statusTheme.dot} ${expandedCardId === card.id ? 'animate-ping' : ''}`} />
                                     {statusTheme.label}
                                 </div>
+                                <span className="shrink-0 text-[11px] font-black text-secondary bg-secondary/10 px-2 py-0.5 rounded-lg">
+                                        {card.distanceStr}
+                                </span>
                             </div>
-                            <div className="w-14 h-14 bg-foreground/5 rounded-3xl flex items-center justify-center text-foreground/30 overflow-hidden shrink-0">
-                                {card.thumbnail_url ? (
-                                    <img src={card.thumbnail_url} alt="" className="w-full h-full object-cover opacity-80" />
-                                ) : (
-                                    <MapPin size={24} />
+
+                            <div className="flex min-w-0 items-center gap-2 overflow-hidden">
+                                <span className={`shrink-0 text-[10px] font-black uppercase tracking-widest ${card.isOfficial ? 'text-secondary' : 'text-foreground/45'}`}>
+                                    {card.isOfficial ? "OFFICIAL" : card.category}
+                                </span>
+                                <div className="min-w-0 shrink opacity-75">
+                                    <TrustBadge score={card.score || 0.5} isOfficial={card.isOfficial} />
+                                </div>
+                                {card.message && (
+                                    <span className="shrink-0 text-[10px] font-black text-secondary uppercase">상세있음</span>
                                 )}
                             </div>
                         </div>
@@ -304,34 +268,4 @@ function getStatusTheme(card: any) {
         dot: "bg-red-500",
         label: `${card.status} 상황`
     };
-}
-
-function SizeButton({
-    label,
-    active,
-    icon,
-    onClick
-}: {
-    label: string;
-    active: boolean;
-    icon: React.ReactNode;
-    onClick: () => void;
-}) {
-    return (
-        <button
-            type="button"
-            onPointerDown={(e) => e.stopPropagation()}
-            onClick={onClick}
-            className={`flex h-9 items-center gap-1.5 rounded-full px-3 text-[11px] font-black transition-all ${
-                active
-                    ? "bg-foreground text-background shadow-lg"
-                    : "bg-foreground/5 text-foreground/45 hover:bg-foreground/10 hover:text-foreground"
-            }`}
-            aria-label={`주변의 순간들 ${label} 보기`}
-            title={label}
-        >
-            {icon}
-            <span>{label}</span>
-        </button>
-    );
 }
