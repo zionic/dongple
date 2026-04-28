@@ -103,13 +103,6 @@ function NewsContent() {
                     category="병원"
                     icon={HeartPulse}
                     color="text-red-500"
-                />
-                <CategorizedNewsCarousel
-                    title="공공 소식"
-                    category="공공"
-                    icon={Landmark}
-                    color="text-purple-500"
-                />
             </div>
         </div>
     );

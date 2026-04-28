@@ -85,8 +85,8 @@ export default function NewsCard({ item, isRss, onUpdate }: NewsCardProps) {
                 <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent" />
 
                 {isRss && (
-                    <div className="absolute top-5 left-5 px-3 py-1.5 bg-black/60 backdrop-blur-lg rounded-full text-[10px] font-black text-white flex items-center shadow-lg">
-                        <ExternalLink size={10} className="mr-1.5" /> 외부 소식
+                    <div className="absolute top-5 left-5 px-3 py-1.5 bg-blue-500/90 backdrop-blur-lg rounded-full text-[10px] font-black text-white flex items-center shadow-lg z-10">
+                        <ShieldCheck size={12} className="mr-1.5" /> 공공 인증
                     </div>
                 )}
 

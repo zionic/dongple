@@ -13,16 +13,25 @@ interface StatusMarkerProps {
 }
 
 export function StatusMarker({ status, isRequest, isSelected, trustScore = 0.5 }: StatusMarkerProps) {
-    // 상태별 컬러 테마 (Vibrant & Premium)
+    // 상태별 컬러 테마 (폼과 통일: green, blue, red)
     const theme = isRequest 
         ? { shadow: 'shadow-orange-500/30', bg: 'bg-orange-500', border: 'border-orange-400/50' }
-        : status === '여유' 
-            ? { shadow: 'shadow-emerald-500/30', bg: 'bg-emerald-500', border: 'border-emerald-400/50' }
+        : (status === '한산' || status === '여유')
+            ? { shadow: 'shadow-green-500/30', bg: 'bg-green-500', border: 'border-green-400/50' }
             : status === '보통'
                 ? { shadow: 'shadow-blue-500/30', bg: 'bg-blue-500', border: 'border-blue-400/50' }
-                : { shadow: 'shadow-rose-500/30', bg: 'bg-rose-500', border: 'border-rose-400/50' };
+                : { shadow: 'shadow-red-500/30', bg: 'bg-red-500', border: 'border-red-400/50' };
 
     const isHighTrust = trustScore >= 0.8;
+
+    // 속도감: 붐빔(빠름) > 보통(중간) > 한산(느림)
+    const animationClass = isRequest 
+        ? 'animate-[pulse_2s_ease-in-out_infinite]' 
+        : status === '붐빔'
+            ? 'animate-[pulse_0.8s_ease-in-out_infinite]'
+            : status === '보통'
+                ? 'animate-[pulse_2s_ease-in-out_infinite]'
+                : 'animate-[pulse_4s_ease-in-out_infinite]'; // 한산 또는 여유
 
     return (
         <motion.div 
@@ -31,7 +40,7 @@ export function StatusMarker({ status, isRequest, isSelected, trustScore = 0.5 }
             className={`flex flex-col items-center transform -translate-x-1/2 -translate-y-[120%] cursor-pointer transition-all duration-300 ${isSelected ? 'z-50' : 'hover:scale-110 z-10'}`}
         >
             <div className={`px-2.5 py-1.5 ${theme.bg} ${theme.shadow} ${theme.border} rounded-2xl text-white text-[11px] font-black flex items-center border shadow-xl backdrop-blur-sm ${isHighTrust ? 'ring-2 ring-white/50 ring-offset-2 ring-offset-transparent' : ''}`}>
-                <div className={`w-1.5 h-1.5 rounded-full mr-1.5 bg-white ${isSelected || isHighTrust ? 'animate-pulse' : ''} shadow-sm`}></div>
+                <div className={`w-1.5 h-1.5 rounded-full mr-1.5 bg-white ${animationClass} shadow-sm`}></div>
                 <span className="tracking-tight">{isRequest ? '상황요청' : status}</span>
                 {isHighTrust && <div className="ml-1 opacity-80">🛡️</div>}
             </div>

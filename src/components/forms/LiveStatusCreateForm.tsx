@@ -147,9 +147,13 @@ export default function LiveStatusCreateForm({
                 <label className="block text-xs font-bold text-gray-700 mb-1.5 flex items-center justify-between">
                     <span>장소 이름 (필수)</span>
                     {displayAddress && (
-                        <span className="text-[10px] text-[#2E7D32] bg-green-50 px-1.5 py-0.5 rounded flex items-center">
+                        <button 
+                            type="button"
+                            onClick={() => setNewPlaceName(displayAddress)}
+                            className="text-[10px] text-[#2E7D32] bg-green-50 px-1.5 py-0.5 rounded flex items-center hover:bg-green-100 transition-colors active:scale-95"
+                        >
                             <MapPin size={8} className="mr-0.5" /> 현위치 주소 자동입력됨
-                        </span>
+                        </button>
                     )}
                 </label>
                 <input
