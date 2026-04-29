@@ -14,8 +14,9 @@ export default function BottomNavV2() {
         { icon: Home, label: "홈", path: "/" },
         { icon: Map, label: "지도", path: "/map" },
         { icon: Plus, label: "공유", isCenter: true },
-        { icon: User, label: "나의 내발문자", path: "#" },
+        { icon: User, label: "나의 동플", path: "#" },
     ];
+
     return (
         <div className="fixed bottom-0 left-0 right-0 z-[100] px-6 pb-8 pointer-events-none">
             <div className="bg-nav-bg backdrop-blur-xl rounded-[32px] border border-border shadow-2xl pointer-events-auto h-20 flex items-center justify-between px-4 transition-colors duration-500">

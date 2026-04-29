@@ -10,8 +10,8 @@ const slides = [
     id: 1,
     badge: "30,000+ 이웃들이 기록 중",
     icon: <Users size={14} className="text-[#A67C52]" />,
-    title: <>내발문자<br /><span className="bg-gradient-to-r from-[#A67C52] to-[#D7CCC8] bg-clip-text text-transparent">내 발자국이 머문 자리</span>를 기록하세요</>,
-    desc: "지금 이 순간, 내가 다녀간 곳의 소식을\n가장 빠르고 정확하게 만나보세요.",
+    title: <>동플 바로!<br /><span className="bg-gradient-to-r from-[#A67C52] to-[#D7CCC8] bg-clip-text text-transparent">우리 동네 순간</span>을 기록하세요</>,
+    desc: "지금 이 순간, 우리 동네에서 무슨 일이?\n가장 빠르고 정확한 동네 브리핑을 만나보세요.",
     cta: "지금 바로 시작하기",
     href: "/map",
     color: "bg-[#795548]"
