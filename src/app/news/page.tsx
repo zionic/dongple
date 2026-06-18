@@ -103,6 +103,7 @@ function NewsContent() {
                     category="병원"
                     icon={HeartPulse}
                     color="text-red-500"
+                />
             </div>
         </div>
     );

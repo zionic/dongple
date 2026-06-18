@@ -4,6 +4,7 @@ import "./globals.css";
 import GlobalModalProvider from "@/components/ui/GlobalModalProvider";
 import NaverScript from "@/components/map/NaverScript";
 import NavigationWrapper from "@/components/layout/NavigationWrapper";
+import ProximityAlertManager from "@/components/layout/ProximityAlertManager";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -56,6 +57,7 @@ export default function RootLayout({
           <NavigationWrapper>
             {children}
           </NavigationWrapper>
+          <ProximityAlertManager />
         </GlobalModalProvider>
       </body>
     </html>

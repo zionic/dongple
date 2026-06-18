@@ -13,8 +13,9 @@ import { useLocationStore } from "@/lib/store/locationStore";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
     Home, Trees, Dumbbell, Coffee, ShoppingBag, Store, ParkingCircle, HeartPulse, Building2,
-    LocateFixed, Accessibility, PawPrint
+    LocateFixed, Accessibility, PawPrint, Radar, Navigation
 } from "lucide-react";
+import { useProximityStore } from "@/lib/store/proximityStore";
 
 // New Components
 import MapHeader from "@/features/map/components/MapHeader";
@@ -52,9 +53,19 @@ function MapContent() {
     const { 
         latitude: storeLat, 
         longitude: storeLng, 
+        realLatitude,
+        realLongitude,
         address: storeAddress,
         setLocation 
     } = useLocationStore();
+
+    const {
+        isTracking,
+        isAutoCenter,
+        radarRadius,
+        setTracking,
+        setAutoCenter
+    } = useProximityStore();
 
     const [markers, setMarkers] = useState<LiveStatus[]>([]);
     const [expandedCardId, setExpandedCardId] = useState<string | null>(null);
@@ -83,6 +94,59 @@ function MapContent() {
     const startY = useRef(0);
     const startHeight = useRef(24);
     const dragHeight = useRef(24);
+
+    const realLocationMarkerRef = useRef<any>(null);
+    const realLocationCircleRef = useRef<any>(null);
+
+    useEffect(() => {
+        if (!mapRef.current || !window.naver?.maps) return;
+
+        if (realLocationMarkerRef.current) {
+            realLocationMarkerRef.current.setMap(null);
+            realLocationMarkerRef.current = null;
+        }
+        if (realLocationCircleRef.current) {
+            realLocationCircleRef.current.setMap(null);
+            realLocationCircleRef.current = null;
+        }
+
+        if (isTracking && realLatitude !== null && realLongitude !== null) {
+            const center = new window.naver.maps.LatLng(realLatitude, realLongitude);
+
+            const el = document.createElement('div');
+            el.className = "relative flex items-center justify-center";
+            el.innerHTML = `
+                <div class="absolute w-7 h-7 bg-blue-500/35 rounded-full animate-ping"></div>
+                <div class="absolute w-5 h-5 bg-blue-400/50 rounded-full animate-pulse"></div>
+                <div class="relative w-3.5 h-3.5 bg-blue-600 rounded-full border-2 border-white shadow-[0_2px_8px_rgba(0,0,0,0.2)]"></div>
+            `;
+
+            realLocationMarkerRef.current = new window.naver.maps.Marker({
+                position: center,
+                map: mapRef.current,
+                icon: {
+                    content: el,
+                    anchor: new window.naver.maps.Point(14, 14)
+                },
+                zIndex: 999
+            });
+
+            realLocationCircleRef.current = new window.naver.maps.Circle({
+                map: mapRef.current,
+                center: center,
+                radius: radarRadius,
+                fillColor: '#3b82f6',
+                fillOpacity: 0.12,
+                strokeColor: '#2563eb',
+                strokeOpacity: 0.35,
+                strokeWeight: 1.2
+            });
+
+            if (isAutoCenter) {
+                mapRef.current.panTo(center);
+            }
+        }
+    }, [isTracking, realLatitude, realLongitude, radarRadius, isAutoCenter]);
 
     const loadData = async () => {
         try {
@@ -496,6 +560,36 @@ function MapContent() {
                         >
                             <PawPrint size={18} />
                         </button>
+                        <button 
+                            onClick={() => {
+                                const nextTracking = !isTracking;
+                                setTracking(nextTracking);
+                                if (nextTracking && typeof window !== 'undefined' && 'Notification' in window) {
+                                    Notification.requestPermission();
+                                }
+                            }}
+                            className={`p-2.5 backdrop-blur-3xl rounded-2xl shadow-xl border transition-all pointer-events-auto hover:scale-110 active:scale-95 ${
+                                isTracking 
+                                ? "bg-rose-500 text-white border-rose-400" 
+                                : "bg-nav-bg/90 text-rose-500/70 border-border"
+                            }`}
+                            title="레이더 탐지 모드"
+                        >
+                            <Radar size={18} className={isTracking ? "animate-pulse" : ""} />
+                        </button>
+                        {isTracking && (
+                            <button 
+                                onClick={() => setAutoCenter(!isAutoCenter)}
+                                className={`p-2.5 backdrop-blur-3xl rounded-2xl shadow-xl border transition-all pointer-events-auto hover:scale-110 active:scale-95 ${
+                                    isAutoCenter 
+                                    ? "bg-indigo-600 text-white border-indigo-500" 
+                                    : "bg-nav-bg/90 text-indigo-600/70 border-border"
+                                }`}
+                                title="중심 자동추적"
+                            >
+                                <Navigation size={18} className={isAutoCenter ? "animate-bounce" : ""} />
+                            </button>
+                        )}
                         <button 
                             onClick={handleMyLocation}
                             className="p-2.5 bg-nav-bg/90 backdrop-blur-3xl rounded-2xl shadow-xl border border-border text-secondary hover:scale-110 active:scale-95 transition-all pointer-events-auto"
